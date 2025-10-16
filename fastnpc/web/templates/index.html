@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastNPC</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org/dist/ext/json-enc.js"></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x" defer></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main class="container" x-data="{ role: '', model: '{{ models[0] }}', source: 'zhwiki', taskId: '', sessionId: '', structuredLoaded: false }">
+    <h1>FastNPC</h1>
+    <section>
+      <form hx-post="/collect" hx-target="#progress" hx-swap="innerHTML">
+        <div class="grid">
+          <label>
+            角色名
+            <input name="role" type="text" placeholder="请输入角色名" required />
+          </label>
+          <label>
+            模型
+            <select name="model">
+              {% for m in models %}
+                <option value="{{ m }}">{{ m }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            数据源
+            <select name="source" id="source-select">
+              {% for s in sources %}
+                <option value="{{ s.value }}">{{ s.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <input type="hidden" name="choice_index" />
+        <input type="hidden" name="filter_text" />
+        <fieldset>
+          <label>
+            <input type="checkbox" name="export_facts" /> 导出事实（facts_*.json）
+          </label>
+          <label>
+            <input type="checkbox" name="export_bullets" /> 导出要点（bullets_*.txt）
+          </label>
+        </fieldset>
+        <button type="submit" id="btn-collect">搜集</button>
+      </form>
+      <div id="progress" class="mt-2"></div>
+    </section>
+
+    <section id="editor" class="mt-4"></section>
+
+    <section id="chat" class="mt-4">
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" hx-post="/chat" hx-target="#chat-log" hx-swap="beforeend" hx-encoding="multipart/form-data">
+        <input type="hidden" name="role" id="chat-role" value="" />
+        <input type="hidden" name="session_id" id="chat-session" value="" />
+        <input type="text" name="prompt" placeholder="和角色聊天..." />
+        <button type="submit">发送</button>
+      </form>
+    </section>
+  </main>
+  <script>
+    // 当选择 baike 时，拦截提交并弹出同名选择
+    (function(){
+      const form = document.querySelector('form[hx-post="/collect"]');
+      const btn = document.getElementById('btn-collect');
+      const sourceSel = document.getElementById('source-select');
+      if(!form || !btn || !sourceSel) return;
+      form.addEventListener('submit', function(ev){
+        try{
+          const source = (sourceSel.value||'').trim();
+          if(source !== 'baike') return; // 其他数据源正常提交
+          ev.preventDefault();
+          // 插入弹窗 partial
+          fetch('/static/../templates/partials/polysemant_modal.html').then(r=>r.text()).then(html=>{
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            document.body.appendChild(div.firstElementChild);
+            // 预填关键词
+            const roleInput = form.querySelector('input[name="role"]');
+            const kw = roleInput ? roleInput.value.trim() : '';
+            const modal = document.querySelector('#polysemant-modal');
+            if(modal){
+              const input = modal.querySelector('input[type="text"]');
+              if(input) input.value = kw;
+              // 自动拉取候选一次
+              const btnFetch = modal.querySelector('button');
+              if(btnFetch) btnFetch.click();
+            }
+          });
+        }catch(e){ /* 静默失败，走默认提交 */ }
+      }, true);
+    })();
+  </script>
+</body>
+</html>
+
+

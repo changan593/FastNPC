@@ -1,0 +1,24 @@
+.container { max-width: 980px; }
+.mt-2 { margin-top: .75rem; }
+.mt-4 { margin-top: 1.5rem; }
+.chat-log { border: 1px solid #e5e7eb; padding: .75rem; min-height: 140px; background:#fff; }
+.chat-item { display: flex; gap: .5rem; margin: .25rem 0; }
+.chat-item .who { font-weight: 600; width: 3rem; color: #6b7280; }
+.chat-item .text { flex: 1; white-space: pre-wrap; }
+.chat-item.user .who { color: #2563eb; }
+.chat-item.bot .who { color: #16a34a; }
+.progress-wrap { border: 1px dashed #d1d5db; padding: .5rem; }
+
+/* JSONEditor 布局与侧栏 */
+.grid.two { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
+.card { border: 1px solid #e5e7eb; border-radius: 8px; padding: .75rem; background: #fff; }
+.toolbar { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+.toolbar .spacer { flex: 1; }
+.toolbar .upload-label { border: 1px dashed #d1d5db; padding: .25rem .5rem; border-radius: 6px; cursor: pointer; }
+.toolbar .upload-label input { display: none; }
+.kv { display: flex; justify-content: space-between; gap: .5rem; padding: .25rem 0; }
+.kv span { color: #6b7280; }
+.kv em { font-style: normal; color: #111827; }
+.muted { color: #6b7280; }
+
+

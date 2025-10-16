@@ -1,0 +1,124 @@
+<article>
+  <header>
+    <h2>结构化数据（{{ role }}）</h2>
+  </header>
+
+  <!-- JSONEditor 资源（CDN） -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.5/dist/jsoneditor.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.5/dist/jsoneditor.min.js"></script>
+
+  <div class="grid two">
+    <div>
+      <div class="card">
+        <div id="jsoneditor" style="height: 520px;"></div>
+        <div class="toolbar">
+          <button id="btn-pretty" type="button">格式化</button>
+          <button id="btn-validate" type="button">校验</button>
+          <button id="btn-download" type="button">下载</button>
+          <label class="upload-label">导入<input id="file-input" type="file" accept="application/json,.json" /></label>
+          <span class="spacer"></span>
+          <button id="btn-save" class="contrast" type="button">保存</button>
+          <span id="save-result" class="muted"></span>
+        </div>
+      </div>
+    </div>
+    <aside>
+      <div class="card">
+        <h3>关键信息</h3>
+        <div class="kv"><span>任务目标</span><em id="kv-goal">—</em></div>
+        <div class="kv"><span>对话意图</span><em id="kv-intent">—</em></div>
+        <div class="kv"><span>角色姓名</span><em id="kv-name">—</em></div>
+        <div class="kv"><span>世界主线</span><em id="kv-world">—</em></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // 注入聊天 session
+    (function(){
+      var el = document.getElementById('chat-session');
+      if (el) el.value = '{{ session_id }}';
+    })();
+
+    // 初始化 JSONEditor
+    (function(){
+      var container = document.getElementById('jsoneditor');
+      var options = { modes: ['tree','code'], mode: 'tree' };
+      var editor = new JSONEditor(container, options);
+      try {
+        var initial = JSON.parse({{ content|tojson }});
+        editor.set(initial);
+      } catch(e) {
+        try { editor.set(JSON.parse(String.raw`{{ content }}`)); } catch(_) {}
+      }
+
+      function getData(){
+        try { return editor.get(); } catch(e) { return null; }
+      }
+
+      function setStatus(text, ok){
+        var el = document.getElementById('save-result');
+        el.textContent = text || '';
+        el.style.color = ok ? 'var(--success)' : 'var(--muted)';
+      }
+
+      function refreshKV(obj){
+        var val = (p, d='—') => {
+          try {
+            var x = p.split('.').reduce((o,k)=> (o? o[k] : undefined), obj);
+            if (x && typeof x === 'string') return x;
+            return d;
+          } catch(_) { return d; }
+        };
+        document.getElementById('kv-goal').textContent = val('任务/功能性信息.任务目标');
+        document.getElementById('kv-intent').textContent = val('任务/功能性信息.对话意图');
+        document.getElementById('kv-name').textContent = val('基础身份信息.姓名');
+        var world = val('环境与世界观.世界观_详细.主线');
+        if (world === '—') world = val('环境与世界观.世界观');
+        document.getElementById('kv-world').textContent = world;
+      }
+
+      refreshKV(getData()||{});
+
+      document.getElementById('btn-pretty').addEventListener('click', function(){
+        try { editor.update(editor.get()); } catch(_) {}
+      });
+      document.getElementById('btn-validate').addEventListener('click', function(){
+        var data = getData();
+        if (data === null) { setStatus('JSON 无效', false); return; }
+        setStatus('JSON 语法有效', true);
+      });
+      document.getElementById('btn-download').addEventListener('click', function(){
+        var data = getData();
+        if (!data) return;
+        var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'structured_{{ role }}.json';
+        a.click();
+      });
+      document.getElementById('file-input').addEventListener('change', function(ev){
+        var f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onload = function(){
+          try { editor.set(JSON.parse(reader.result)); refreshKV(getData()||{}); setStatus('已导入', true);} catch(e){ setStatus('导入失败: '+e, false); }
+        };
+        reader.readAsText(f, 'utf-8');
+        ev.target.value = '';
+      });
+      document.getElementById('btn-save').addEventListener('click', async function(){
+        var data = getData();
+        if (!data) { setStatus('JSON 无效，未保存', false); return; }
+        try {
+          const res = await fetch('/structured/{{ role }}', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+          const j = await res.json();
+          if (j && j.ok) { setStatus('已保存', true); refreshKV(data); }
+          else { setStatus('保存失败', false); }
+        } catch(e) { setStatus('保存失败: '+e, false); }
+      });
+    })();
+  </script>
+</article>
+
+

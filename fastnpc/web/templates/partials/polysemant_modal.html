@@ -1,0 +1,46 @@
+<!-- polysemant modal -->
+<div id="polysemant-modal" class="modal" hx-ext="json-enc" x-data="{ open: true, keyword: '', options: [], selected: 0 }" x-show="open" style="display:block;">
+  <article>
+    <header>
+      <strong>选择同名词条</strong>
+    </header>
+    <section>
+      <label>关键词
+        <input type="text" x-model="keyword" placeholder="请输入关键词" />
+      </label>
+      <div class="grid">
+        <button @click.prevent="fetch('/api/baike/polysemant?keyword=' + encodeURIComponent(keyword)).then(r=>r.json()).then(d=>{options=d.items||[]; selected=0;})">获取候选</button>
+        <input type="text" placeholder="过滤词(可选)" id="poly-filter" />
+      </div>
+      <div style="max-height: 50vh; overflow:auto; margin-top: .5rem;">
+        <table>
+          <thead><tr><th>选择</th><th>标题</th><th>链接</th></tr></thead>
+          <tbody>
+            <template x-for="(it, idx) in options" :key="idx">
+              <tr>
+                <td><input type="radio" name="poly-choice" :value="idx" :checked="idx===selected" @change="selected=idx" /></td>
+                <td x-text="it.text"></td>
+                <td><a :href="it.href" target="_blank" x-text="it.href"></a></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <footer>
+      <button @click.prevent="open=false; document.getElementById('polysemant-modal').remove();">取消</button>
+      <button class="contrast" @click.prevent="
+        const filterInput = document.getElementById('poly-filter').value.trim();
+        const form = document.querySelector('form[hx-post=\"/collect\"]');
+        if(!form){ open=false; return; }
+        // 注入隐藏字段
+        let ci = form.querySelector('input[name=choice_index]'); if(!ci){ ci=document.createElement('input'); ci.type='hidden'; ci.name='choice_index'; form.appendChild(ci); }
+        let ft = form.querySelector('input[name=filter_text]'); if(!ft){ ft=document.createElement('input'); ft.type='hidden'; ft.name='filter_text'; form.appendChild(ft); }
+        ci.value = selected;
+        ft.value = filterInput;
+        open=false; document.getElementById('polysemant-modal').remove();
+        form.requestSubmit();
+      ">确认并继续</button>
+    </footer>
+  </article>
+</div>

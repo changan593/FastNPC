@@ -1,0 +1,717 @@
+# FastNPC
+
+<div align="center">
+
+**基于百科数据的智能AI角色自动构建系统**
+
+一个快速自动化构建可交互AI角色的完整解决方案，支持从百科数据到结构化角色画像的全流程生成。
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19.1+-61DAFB.svg)](https://react.dev/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+</div>
+
+---
+
+## 📖 项目简介
+
+FastNPC 是一个创新的 AI 角色自动化构建平台，能够从百度百科、维基百科等知识源自动抓取角色信息，通过大语言模型（LLM）智能生成结构化的角色画像，并提供完整的对话交互功能。
+
+### 🎯 核心价值
+
+- **自动化构建**：只需输入角色名称，即可全自动完成数据抓取、结构化处理和角色生成
+- **高质量画像**：基于8大类结构化维度，生成专业的角色人格画像
+- **智能记忆系统**：三层记忆架构（会话/短期/长期），实现连贯的长期对话
+- **多人群聊**：支持多角色群聊场景，配备智能中控判断发言顺序
+- **开箱即用**：完整的前后端分离架构，提供友好的Web操作界面
+
+---
+
+## ✨ 核心特性
+
+### 🤖 角色构建
+
+- **多源数据抓取**
+  - 支持百度百科（含同名消歧）
+  - 支持中文维基百科
+  - 智能选择候选词条
+  
+- **结构化处理**
+  - 8大类角色画像：基础身份、个性行为、背景故事、知识能力、对话交互、任务功能、环境世界观、系统控制
+  - 并发生成优化（可配置并发度）
+  - 自动生成角色简介
+
+### 💬 对话系统
+
+- **单角色对话**
+  - 六段式 System Prompt（规则+画像+记忆+对象+会话）
+  - 三层记忆系统（会话记忆→短期记忆→长期记忆）
+  - 自动记忆压缩与整合
+  - 流式回复支持
+
+- **多角色群聊**
+  - 智能中控判断下一发言者
+  - 基于剧情逻辑的角色选择
+  - 独立的记忆管理（每个角色独立记忆）
+  - 群聊成员动态管理
+
+### 🔐 用户系统
+
+- 完整的用户认证（注册/登录）
+- 角色私有化管理
+- 管理员后台（用户管理、角色审查）
+- 个性化配置（模型选择、记忆预算、个人简介）
+
+---
+
+## 🛠️ 技术栈
+
+### 后端
+
+- **框架**: FastAPI 0.112+
+- **数据库**: SQLite3（支持扩展到其他SQL数据库）
+- **LLM调用**: OpenRouter API（兼容 OpenAI SDK）
+- **爬虫**: Requests + BeautifulSoup4 + Playwright（可选）
+- **认证**: Cookie签名（itsdangerous）+ Bcrypt密码哈希
+
+### 前端
+
+- **框架**: React 19 + TypeScript
+- **构建工具**: Vite 7
+- **HTTP客户端**: Axios
+- **样式**: CSS Modules
+
+### 核心依赖
+
+```
+fastapi>=0.112.0          # Web框架
+uvicorn[standard]>=0.30.0 # ASGI服务器
+openai>=1.40.0            # LLM SDK
+beautifulsoup4>=4.12.3    # HTML解析
+sqlalchemy>=2.0.32        # ORM
+passlib[bcrypt]>=1.7.4    # 密码加密
+python-dotenv>=1.0.1      # 环境变量管理
+```
+
+---
+
+## 🚀 快速开始
+
+### 前置要求
+
+- Python 3.11+
+- Node.js 18+
+- npm 或 yarn
+
+### 1. 克隆项目
+
+```bash
+git clone <repository-url>
+cd FastNPC
+```
+
+### 2. 配置环境变量
+
+复制环境变量示例文件并编辑：
+
+```bash
+cp env.example .env
+```
+
+编辑 `.env` 文件，填入必需的配置：
+
+```ini
+# 必需：安全密钥（用于Cookie签名，建议使用随机字符串）
+FASTNPC_SECRET=your-random-secret-key-here
+
+# 必需：OpenRouter API密钥
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+
+# 可选：管理员用户名
+FASTNPC_ADMIN_USER=admin
+
+# 可选：前端地址（CORS配置）
+FASTNPC_FRONTEND_ORIGIN=http://localhost:5173
+
+# 可选：结构化并发度（默认4，建议2-8）
+FASTNPC_MAX_CONCURRENCY=4
+```
+
+### 3. 安装后端依赖
+
+推荐使用虚拟环境：
+
+```bash
+# 创建虚拟环境
+python -m venv .venv
+
+# 激活虚拟环境
+# Linux/Mac:
+source .venv/bin/activate
+# Windows:
+.venv\Scripts\activate
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+### 4. 启动后端服务
+
+```bash
+uvicorn fastnpc.api.server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+后端服务将在 `http://localhost:8000` 启动。
+
+### 5. 安装前端依赖
+
+```bash
+cd web/fastnpc-web
+npm install
+```
+
+### 6. 启动前端开发服务器
+
+```bash
+npm run dev -- --host --port 5173
+```
+
+前端服务将在 `http://localhost:5173` 启动。
+
+### 7. 访问应用
+
+- **前端界面**: http://localhost:5173
+- **后端API文档**: http://localhost:8000/docs
+
+---
+
+## ⚙️ 配置说明
+
+### 环境变量详解
+
+| 变量名 | 必需 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `FASTNPC_SECRET` | ✅ | 无 | Cookie签名密钥，必须设置强随机字符串 |
+| `OPENROUTER_API_KEY` | ✅ | 无 | OpenRouter API密钥，用于调用LLM |
+| `FASTNPC_ADMIN_USER` | ❌ | 无 | 管理员用户名，首个注册的该用户名将获得管理员权限 |
+| `FASTNPC_FRONTEND_ORIGIN` | ❌ | `http://localhost:5173` | 前端地址，用于CORS配置，支持逗号分隔多个 |
+| `FASTNPC_MAX_CONCURRENCY` | ❌ | `4` | 结构化并发度，控制同时调用LLM的最大线程数 |
+| `FASTNPC_ROOT` | ❌ | 自动推断 | 项目根目录，通常无需设置 |
+
+### 用户配置（应用内设置）
+
+用户登录后可在设置中配置：
+
+- **默认模型**: 选择偏好的LLM模型
+- **记忆预算**: 设置会话/短期/长期记忆的字符数上限
+- **个人简介**: 用于群聊中其他角色了解你
+- **群聊最大回复轮数**: 控制角色连续发言次数（默认3轮）
+
+---
+
+## 📚 使用指南
+
+### 创建角色
+
+1. 点击左下角 **"📝 角色"** 按钮
+2. 输入角色名称（如：孙悟空、李白、马云）
+3. 选择数据源：
+   - **百度百科**: 适合中文人物
+   - **中文维基**: 适合国际人物
+4. 选择结构化程度：
+   - **简洁**: 快速生成，核心信息
+   - **细化**: 完整生成，包含所有细节
+5. 如遇同名角色，会弹出消歧选择界面
+6. 等待自动生成完成（30秒-2分钟）
+
+**步骤示意图：**
+
+<div align="center">
+
+| 输入角色名称 | 消歧选择界面 | 创建中 |
+|:---:|:---:|:---:|
+| ![输入角色名称](images/自动创建角色-输入角色名称.png) | ![选择角色](images/自动创建角色-选择角色.png) | ![创建中](images/自动创建角色-自动创建角色中.png) |
+
+</div>
+
+### 单角色对话
+
+1. 在左侧列表选择角色
+2. 在底部输入框输入消息
+3. 按回车或点击"发送"按钮
+4. 支持流式回复，实时显示
+5. 右侧面板显示角色简介
+
+<div align="center">
+
+![私聊界面](images/私聊.png)
+
+*单角色对话界面*
+
+</div>
+
+### 创建群聊
+
+1. 点击左下角 **"💬 群聊"** 按钮
+2. 输入群聊名称
+3. 勾选要加入的角色（支持多选）
+4. 点击"创建"按钮
+5. 群聊会出现在左侧列表
+
+<div align="center">
+
+![创建群聊](images/创建群聊.png)
+
+*创建群聊界面*
+
+</div>
+
+### 群聊交互
+
+1. 选择群聊后，输入消息发送
+2. 系统自动判断下一个发言角色
+3. 角色基于剧情逻辑自动回复
+4. 达到最大回复轮数后等待用户发言
+5. 右侧面板显示所有成员简介
+
+<div align="center">
+
+![群聊界面](images/群聊.png)
+
+*群聊交互界面*
+
+</div>
+
+### 角色管理
+
+- **重命名**: 右键角色 → 选择"重命名"
+- **复制**: 右键角色 → 选择"复制"
+- **删除**: 右键角色 → 选择"删除"（会删除所有消息）
+- **编辑配置**: 右侧"管理"按钮 → 打开角色配置页面
+
+<div align="center">
+
+| 查看/编辑角色配置 | 管理群成员 |
+|:---:|:---:|
+| ![查看编辑角色配置](images/查看或编辑角色配置.png) | ![管理群成员](images/管理群成员.png) |
+
+*角色与群聊成员管理*
+
+</div>
+
+---
+
+## 🏗️ 项目架构
+
+### 目录结构
+
+```
+FastNPC/
+├── fastnpc/                    # 后端核心
+│   ├── api/                    # FastAPI路由
+│   │   ├── routes/            # 各功能路由模块
+│   │   ├── server.py          # 主服务器入口
+│   │   ├── auth.py            # 认证与数据库
+│   │   ├── state.py           # 任务状态管理
+│   │   └── utils.py           # API工具函数
+│   ├── chat/                   # 对话系统
+│   │   ├── prompt_builder.py  # Prompt构建（六段式）
+│   │   ├── memory_manager.py  # 三层记忆管理
+│   │   └── group_moderator.py # 群聊中控
+│   ├── datasources/            # 数据源爬虫
+│   │   ├── baike.py           # 百度百科
+│   │   └── zhwiki.py          # 维基百科
+│   ├── llm/                    # LLM调用封装
+│   │   └── openrouter.py      # OpenRouter客户端
+│   ├── pipeline/               # 数据处理管道
+│   │   ├── collect.py         # 数据收集
+│   │   └── structure/         # 结构化处理
+│   │       ├── core.py        # 主流程
+│   │       ├── prompts.py     # Prompt模板
+│   │       └── processors.py  # 文本处理
+│   ├── utils/                  # 工具函数
+│   ├── web/                    # 后端模板（可选）
+│   └── config.py               # 配置管理
+├── web/fastnpc-web/            # 前端React应用
+│   ├── src/
+│   │   ├── App.tsx            # 主应用组件
+│   │   ├── types.ts           # TypeScript类型定义
+│   │   └── main.tsx           # 入口文件
+│   ├── public/                # 静态资源
+│   └── package.json           # 前端依赖
+├── Characters/                 # 角色数据存储
+├── Test/                       # 测试脚本
+├── logs/                       # 运行日志
+├── fastnpc.db                  # SQLite数据库
+├── requirements.txt            # Python依赖
+├── .env                        # 环境变量（需自己创建）
+└── README.md                   # 本文件
+```
+
+### 系统架构图
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        用户浏览器                              │
+│                    http://localhost:5173                      │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP/WebSocket
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    前端 (React + Vite)                        │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │  角色管理    │  │   单聊界面    │  │   群聊界面    │       │
+│  └─────────────┘  └──────────────┘  └──────────────┘       │
+└────────────────────────┬────────────────────────────────────┘
+                         │ REST API
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   后端 (FastAPI)                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              API路由层                                │    │
+│  │  auth / character / chat / group / task ...         │    │
+│  └────────┬──────────────────┬─────────────────────────┘    │
+│           ↓                  ↓                               │
+│  ┌──────────────┐   ┌─────────────────┐                     │
+│  │  数据抓取     │   │   对话系统       │                     │
+│  │ baike/zhwiki │   │ prompt/memory   │                     │
+│  └──────┬───────┘   └────────┬────────┘                     │
+│         ↓                    ↓                               │
+│  ┌──────────────────────────────────┐                       │
+│  │        结构化处理管道              │                       │
+│  │   并发LLM → 8大类 → 简介          │                       │
+│  └──────────────────────────────────┘                       │
+└────────────┬───────────────────┬────────────────────────────┘
+             │                   │
+             ↓                   ↓
+    ┌────────────────┐   ┌──────────────────┐
+    │  SQLite数据库   │   │  OpenRouter API  │
+    │  用户/角色/消息  │   │   (LLM服务)      │
+    └────────────────┘   └──────────────────┘
+```
+
+### 核心流程
+
+#### 1. 角色创建流程
+
+```
+用户输入角色名
+    ↓
+数据源选择 (baike/zhwiki)
+    ↓
+[可选] 同名消歧选择
+    ↓
+数据抓取 (HTML → JSON)
+    ↓
+JSON → Markdown 转换
+    ↓
+并发调用LLM生成8大类
+    ↓
+生成角色简介
+    ↓
+保存到数据库 + JSON文件
+```
+
+#### 2. 对话流程（单聊）
+
+```
+用户输入消息 → 保存到数据库
+    ↓
+检查会话记忆大小
+    ↓
+[超预算] 压缩为短期记忆
+    ↓
+构建六段式 System Prompt
+    ├─ ① 固定规则层
+    ├─ ② 结构化画像（8大类）
+    ├─ ③ 长期记忆
+    ├─ ④ 短期记忆
+    ├─ ⑤ 用户简介
+    └─ ⑥ 会话记忆（最近对话）
+    ↓
+调用LLM流式生成回复
+    ↓
+保存回复到数据库
+    ↓
+[定期] 整合短期→长期记忆
+```
+
+#### 3. 群聊流程
+
+```
+用户发送消息
+    ↓
+调用中控判断下一发言者
+    ├─ 话题相关性
+    ├─ 角色动机
+    ├─ 剧情推动力
+    └─ 对话连贯性
+    ↓
+[置信度≥0.8] 明确选择角色
+[置信度0.5-0.8] 随机选择
+[置信度<0.5] 等待用户
+    ↓
+为该角色构建群聊专用Prompt
+    ↓
+流式生成回复
+    ↓
+[循环] 直到达到最大轮数
+```
+
+---
+
+## 🔧 开发指南
+
+### 本地开发
+
+#### 后端热重载
+
+```bash
+# 使用 --reload 参数
+uvicorn fastnpc.api.server:app --host 0.0.0.0 --port 8000 --reload
+```
+
+修改Python代码后，服务器会自动重启。
+
+#### 前端热重载
+
+```bash
+cd web/fastnpc-web
+npm run dev -- --host --port 5173
+```
+
+修改React代码后，页面会自动刷新。
+
+### 测试脚本
+
+Test目录下提供了独立的测试脚本：
+
+```bash
+# 测试百度百科抓取
+python Test/test_baidubaike.py
+
+# 测试维基百科抓取
+python Test/test_zhwikiapi.py
+
+# 测试结构化处理
+python Test/test_structure.py
+
+# 测试对话系统
+python Test/test_chat.py
+```
+
+### 添加新数据源
+
+1. 在 `fastnpc/datasources/` 创建新模块
+2. 实现 `get_full(keyword, ...)` 函数
+3. 返回标准格式的数据字典
+4. 在 `fastnpc/pipeline/collect.py` 注册新数据源
+
+### 调整结构化类别
+
+编辑 `fastnpc/pipeline/structure/prompts.py` 中的 `_category_prompts()` 函数。
+
+---
+
+## 📊 API文档
+
+启动后端服务后，访问以下地址查看完整API文档：
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### 主要API端点
+
+#### 认证相关
+
+- `POST /auth/register` - 用户注册
+- `POST /auth/login` - 用户登录
+- `POST /auth/logout` - 用户登出
+- `GET /auth/me` - 获取当前用户信息
+
+#### 角色管理
+
+- `GET /api/characters` - 获取角色列表
+- `POST /api/characters` - 创建新角色（异步任务）
+- `GET /api/characters/{role}/structured` - 获取角色结构化信息
+- `PUT /api/characters/{role}/structured` - 更新角色信息
+- `PUT /api/characters/{old_name}/rename` - 重命名角色
+- `DELETE /api/characters/{name}` - 删除角色
+
+#### 对话相关
+
+- `GET /api/chat/{role}/messages` - 获取对话历史
+- `POST /api/chat/{role}/messages` - 发送消息（非流式）
+- `GET /api/chat/{role}/stream` - 发送消息（流式）
+- `POST /api/chat/{role}/compress-all` - 压缩会话记忆
+
+#### 群聊相关
+
+- `GET /api/groups` - 获取群聊列表
+- `POST /api/groups` - 创建群聊
+- `GET /api/groups/{group_id}` - 获取群聊详情
+- `DELETE /api/groups/{group_id}` - 删除群聊
+- `POST /api/groups/{group_id}/members` - 添加成员
+- `DELETE /api/groups/{group_id}/members/{member_name}` - 移除成员
+- `GET /api/groups/{group_id}/messages` - 获取群聊消息
+- `POST /api/groups/{group_id}/messages` - 发送群聊消息
+- `POST /api/groups/{group_id}/judge-next` - 中控判断下一发言者
+- `POST /api/groups/{group_id}/generate-reply` - 生成角色回复（流式）
+
+---
+
+## 💡 常见问题
+
+### Q: 前端显示"无法访问此网站/ERR_CONNECTION_REFUSED"
+
+**A:** 前端服务未启动或端口未监听。
+
+解决方案：
+```bash
+cd web/fastnpc-web
+npm run dev -- --host --port 5173
+```
+
+### Q: 前端控制台显示"proxy error ECONNREFUSED 127.0.0.1:8000"
+
+**A:** 后端服务未启动。
+
+解决方案：
+```bash
+# 确保在项目根目录
+uvicorn fastnpc.api.server:app --host 0.0.0.0 --port 8000 --reload
+
+# 测试后端是否正常
+curl http://localhost:8000/health
+# 应返回: {"ok":true}
+```
+
+### Q: 创建角色时提示"API调用错误"
+
+**A:** OpenRouter API密钥未配置或无效。
+
+解决方案：
+1. 检查 `.env` 文件中的 `OPENROUTER_API_KEY`
+2. 确认密钥有效且有足够配额
+3. 查看后端日志获取详细错误信息
+
+### Q: 角色创建失败，显示"403 Forbidden"
+
+**A:** 百度百科触发了反爬虫机制。
+
+解决方案：
+1. 稍等几分钟后重试
+2. 切换到维基百科数据源
+3. 检查网络连接
+
+### Q: WSL环境下宿主机无法访问前端
+
+**A:** 需要确保前端监听 `0.0.0.0`。
+
+解决方案：
+```bash
+# 使用 --host 参数
+npm run dev -- --host --port 5173
+```
+
+### Q: 如何备份数据？
+
+**A:** 备份以下文件和目录：
+- `fastnpc.db` - 数据库文件
+- `Characters/` - 角色数据目录
+- `.env` - 环境配置（包含密钥）
+
+### Q: 如何修改默认端口？
+
+**A:** 
+- 后端：修改启动命令中的 `--port` 参数
+- 前端：修改 `web/fastnpc-web/vite.config.ts` 中的 `server.port`
+
+### Q: 支持哪些LLM模型？
+
+**A:** 支持所有兼容OpenAI API格式的模型，默认推荐：
+- `z-ai/glm-4-32b`
+- `z-ai/glm-4.5-air:free`
+- `deepseek/deepseek-chat-v3.1:free`
+- `tencent/hunyuan-a13b-instruct:free`
+
+可在应用设置中选择其他模型。
+
+---
+
+## 🤝 贡献指南
+
+欢迎贡献代码、报告问题或提出建议！
+
+### 报告问题
+
+请在 GitHub Issues 中提交，包含以下信息：
+- 问题描述
+- 复现步骤
+- 预期行为
+- 实际行为
+- 环境信息（Python版本、操作系统等）
+
+### 提交代码
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+### 代码风格
+
+- Python: 遵循 PEP 8
+- TypeScript: 遵循项目 ESLint 配置
+- 提交信息: 使用清晰的描述性信息
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+---
+
+## 📞 联系方式
+
+如有问题或建议，欢迎通过以下方式联系：
+
+- 💬 提交 Issue
+- 📧 发送邮件至 [liyanghui2025@163.com](mailto:liyanghui2025@163.com)
+- 👥 加入讨论群
+
+<div align="center">
+
+### 扫码加入讨论群
+
+<img src="images/讨论群二维码.jpg" alt="讨论群二维码" width="300"/>
+
+*微信扫一扫，加入FastNPC技术交流群*
+
+</div>
+
+---
+
+## 🙏 致谢
+
+感谢以下开源项目：
+
+- [FastAPI](https://fastapi.tiangolo.com/) - 现代Web框架
+- [React](https://react.dev/) - 前端UI库
+- [OpenAI](https://openai.com/) - LLM API标准
+- [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/) - HTML解析
+- [Vite](https://vitejs.dev/) - 前端构建工具
+
+---
+
+<div align="center">
+
+**⭐ 如果这个项目对你有帮助，请给个Star！⭐**
+
+Made with ❤️ by FastNPC Team
+
+</div>

@@ -1,0 +1,12 @@
+fastapi>=0.112.0
+uvicorn[standard]>=0.30.0
+jinja2>=3.1.4
+python-multipart>=0.0.9
+requests>=2.31.0
+beautifulsoup4>=4.12.3
+openai>=1.40.0
+sqlalchemy>=2.0.32
+passlib[bcrypt]>=1.7.4
+itsdangerous>=2.2.0
+python-dotenv>=1.0.1
+
