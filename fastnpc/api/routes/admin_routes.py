@@ -20,6 +20,10 @@ from fastnpc.api.auth import (
     list_messages,
     get_user_settings,
     get_or_create_character,
+    list_group_chats,
+    get_group_chat_detail,
+    list_group_messages,
+    list_group_members,
 )
 from fastnpc.api.utils import _require_admin, _require_user, _structured_path_for_role, _read_memories_from_profile
 from fastnpc.utils.roles import normalize_role_name
@@ -221,4 +225,60 @@ def admin_chat_compiled(request: Request, msg_id: int, uid: int = 0, cid: int = 
     ]
     # 仅返回与 OpenRouter API 一致的 payload（messages 数组）
     return prompt_msgs
+
+
+# ============= 群聊管理 =============
+
+@router.get('/admin/users/{uid}/groups')
+def admin_user_groups(uid: int, request: Request):
+    """获取用户的群聊列表"""
+    if not _require_admin(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    groups = list_group_chats(uid)
+    return {"items": groups}
+
+
+@router.get('/admin/groups/{group_id}')
+def admin_group_detail(group_id: int, request: Request):
+    """获取群聊详情（包括成员列表）"""
+    if not _require_admin(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    
+    # 获取群聊基本信息（需要验证权限，但管理员可以查看任何群聊）
+    # 我们需要修改一下逻辑，先获取群聊的user_id
+    from fastnpc.api.auth import _get_conn
+    
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT user_id, name, created_at, updated_at FROM group_chats WHERE id=?", (group_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse({"error": "群聊不存在"}, status_code=404)
+        
+        group_info = {
+            "id": group_id,
+            "user_id": row['user_id'],
+            "name": row['name'],
+            "created_at": row['created_at'],
+            "updated_at": row['updated_at']
+        }
+        
+        # 获取成员列表
+        members = list_group_members(group_id)
+        group_info['members'] = members
+        
+        return {"group": group_info}
+    finally:
+        conn.close()
+
+
+@router.get('/admin/groups/{group_id}/messages')
+def admin_group_messages(group_id: int, request: Request, limit: int = 200):
+    """获取群聊消息"""
+    if not _require_admin(request):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    
+    messages = list_group_messages(group_id, limit=limit)
+    return {"messages": messages}
 

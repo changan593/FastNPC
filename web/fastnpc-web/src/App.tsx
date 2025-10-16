@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
 import axios from 'axios'
-import type { CharacterItem, Message, TaskState, AdminUser, AdminCharacter, GroupItem, GroupMessage, MemberBrief } from './types'
+import type { CharacterItem, Message, TaskState, AdminUser, AdminCharacter, GroupItem, GroupMessage, MemberBrief, Feedback } from './types'
 
 function App() {
   const [characters, setCharacters] = useState<CharacterItem[]>([])
@@ -33,8 +33,17 @@ function App() {
   const [adminUserChars, setAdminUserChars] = useState<AdminCharacter[]>([])
   const [adminSelectedChar, setAdminSelectedChar] = useState<AdminCharacter|null>(null)
   const [adminMessages, setAdminMessages] = useState<Message[]>([])
-  const [adminTab, setAdminTab] = useState<'users'|'characters'|'detail'>('users')
+  const [adminTab, setAdminTab] = useState<'users'|'characters'|'groups'|'feedbacks'|'detail'>('users')
   const [adminSearchQuery, setAdminSearchQuery] = useState('')
+  // 管理员查看群聊相关状态
+  const [adminUserGroups, setAdminUserGroups] = useState<GroupItem[]>([])
+  const [adminSelectedGroup, setAdminSelectedGroup] = useState<any|null>(null)
+  const [adminGroupMessages, setAdminGroupMessages] = useState<GroupMessage[]>([])
+  // 管理员查看反馈相关状态
+  const [adminFeedbacks, setAdminFeedbacks] = useState<Feedback[]>([])
+  const [adminSelectedFeedback, setAdminSelectedFeedback] = useState<Feedback|null>(null)
+  const [feedbackReply, setFeedbackReply] = useState('')
+  const [feedbackStatus, setFeedbackStatus] = useState<'pending' | 'in_progress' | 'resolved' | 'rejected'>('pending')
   // inspect modal
   const [showInspect, setShowInspect] = useState(false)
   const [inspectText, setInspectText] = useState('')
@@ -76,6 +85,16 @@ function App() {
   // 单聊相关状态
   const [showManageChar, setShowManageChar] = useState(false)
   const [charIntro, setCharIntro] = useState<string>('')
+
+  // 反馈相关状态
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackTitle, setFeedbackTitle] = useState('')
+  const [feedbackContent, setFeedbackContent] = useState('')
+  const [feedbackAttachments, setFeedbackAttachments] = useState<string[]>([])
+  const [feedbackUploading, setFeedbackUploading] = useState(false)
+  const [feedbackTab, setFeedbackTab] = useState<'submit' | 'history'>('submit')
+  const [myFeedbacks, setMyFeedbacks] = useState<Feedback[]>([])
+  const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null)
 
   // 移动端相关状态
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -403,6 +422,69 @@ function App() {
     } catch {}
   }
 
+  async function loadAdminUserGroups(uid: number) {
+    try {
+      const { data } = await api.get(`/admin/users/${uid}/groups`)
+      setAdminSelectedUser(adminUsers.find(u => u.id === uid) || null)
+      setAdminUserGroups(data.items || [])
+      setAdminSelectedGroup(null)
+      setAdminGroupMessages([])
+      setAdminTab('groups')
+    } catch {}
+  }
+
+  async function loadAdminGroup(groupId: number) {
+    try {
+      const { data: detail } = await api.get(`/admin/groups/${groupId}`)
+      setAdminSelectedGroup(detail.group)
+      const { data: msgs } = await api.get(`/admin/groups/${groupId}/messages`)
+      setAdminGroupMessages(msgs.messages || [])
+    } catch {}
+  }
+
+  async function loadAdminFeedbacks() {
+    try {
+      const { data } = await api.get('/admin/feedbacks')
+      setAdminFeedbacks(data.items || [])
+      setAdminTab('feedbacks')
+    } catch {}
+  }
+
+  async function loadAdminFeedback(feedbackId: number) {
+    try {
+      const { data } = await api.get(`/admin/feedbacks/${feedbackId}`)
+      setAdminSelectedFeedback(data.feedback)
+      setFeedbackReply(data.feedback.admin_reply || '')
+      setFeedbackStatus(data.feedback.status)
+    } catch {}
+  }
+
+  async function updateFeedbackStatus(feedbackId: number) {
+    try {
+      await api.put(`/admin/feedbacks/${feedbackId}`, {
+        status: feedbackStatus,
+        admin_reply: feedbackReply
+      })
+      alert('更新成功')
+      await loadAdminFeedbacks()
+      setAdminSelectedFeedback(null)
+    } catch (e: any) {
+      alert(e?.response?.data?.error || '更新失败')
+    }
+  }
+
+  async function deleteFeedback(feedbackId: number) {
+    if (!confirm('确定要删除这条反馈吗？')) return
+    try {
+      await api.delete(`/admin/feedbacks/${feedbackId}`)
+      alert('删除成功')
+      await loadAdminFeedbacks()
+      setAdminSelectedFeedback(null)
+    } catch (e: any) {
+      alert(e?.response?.data?.error || '删除失败')
+    }
+  }
+
   async function cleanupAdminUserChars(uid: number) {
     if (!confirm('确定要清理数据库中文件已不存在的角色记录吗？')) return
     try {
@@ -452,6 +534,71 @@ function App() {
       await refreshList()
       if (activeRole === name) setActiveRole(characters[0]?.role || '')
     } catch (e:any) { alert(e?.response?.data?.error || '删除失败') }
+  }
+
+  // 反馈相关函数
+  async function handleFeedbackImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    if (!file.type.startsWith('image/')) {
+      alert('只支持图片格式')
+      return
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      alert('图片大小不能超过5MB')
+      return
+    }
+    
+    try {
+      setFeedbackUploading(true)
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/api/feedbacks/upload', formData)
+      setFeedbackAttachments([...feedbackAttachments, data.url])
+    } catch (e: any) {
+      alert(e?.response?.data?.error || '上传失败')
+    } finally {
+      setFeedbackUploading(false)
+    }
+  }
+  
+  async function loadMyFeedbacks() {
+    try {
+      const { data } = await api.get('/api/feedbacks')
+      setMyFeedbacks(data.items || [])
+    } catch (e: any) {
+      console.error('加载反馈记录失败:', e)
+    }
+  }
+
+  async function submitFeedback() {
+    if (!feedbackTitle.trim()) {
+      alert('请填写反馈标题')
+      return
+    }
+    if (!feedbackContent.trim()) {
+      alert('请填写反馈内容')
+      return
+    }
+    
+    try {
+      const attachments = feedbackAttachments.length > 0 ? JSON.stringify(feedbackAttachments) : null
+      await api.post('/api/feedbacks', { 
+        title: feedbackTitle, 
+        content: feedbackContent,
+        attachments
+      })
+      alert('反馈提交成功！感谢您的反馈')
+      setFeedbackTitle('')
+      setFeedbackContent('')
+      setFeedbackAttachments([])
+      setFeedbackTab('history')
+      await loadMyFeedbacks()
+    } catch (e: any) {
+      alert(e?.response?.data?.error || '提交失败')
+    }
   }
 
   async function copyRole(name: string) {
@@ -805,6 +952,7 @@ function App() {
   if (!user) {
     return (
       <div className="auth-wrap">
+        <div className="auth-background-text">FastNPC</div>
         <div className="auth-card">
           <h2>{authMode === 'login' ? '登录' : '注册'}</h2>
           <label>用户名
@@ -836,6 +984,7 @@ function App() {
       <div className="mobile-overlay" onClick={() => setShowMobileSidebar(false)}></div>
       <aside className="sidebar">
         <div className="sidebar-head">
+          <div className="app-logo">FastNPC</div>
           <h2>角色/群聊</h2>
         </div>
         <div className="search">
@@ -1049,6 +1198,19 @@ function App() {
                     角色列表 {adminSelectedUser ? `(${adminSelectedUser.username})` : ''}
                   </button>
                   <button 
+                    className={adminTab === 'groups' ? 'active' : ''} 
+                    onClick={() => setAdminTab('groups')}
+                    disabled={!adminSelectedUser}
+                  >
+                    群聊列表 {adminSelectedUser ? `(${adminSelectedUser.username})` : ''}
+                  </button>
+                  <button 
+                    className={adminTab === 'feedbacks' ? 'active' : ''} 
+                    onClick={() => loadAdminFeedbacks()}
+                  >
+                    用户反馈
+                  </button>
+                  <button 
                     className={adminTab === 'detail' ? 'active' : ''} 
                     onClick={() => setAdminTab('detail')}
                     disabled={!adminSelectedChar}
@@ -1095,6 +1257,8 @@ function App() {
                           <td>-</td>
                           <td>
                             <button onClick={() => loadAdminUser(u.id)} className="btn-link">查看角色</button>
+                            {' | '}
+                            <button onClick={() => loadAdminUserGroups(u.id)} className="btn-link">查看群聊</button>
                           </td>
                         </tr>
                       ))}
@@ -1195,6 +1359,137 @@ function App() {
                 </div>
               )}
 
+              {adminTab === 'groups' && adminSelectedUser && (
+                <div className="admin-content">
+                  <div className="admin-content-header">
+                    <h3>用户 "{adminSelectedUser.username}" 的群聊列表</h3>
+                    <div className="muted">共 {adminUserGroups.length} 个群聊</div>
+                  </div>
+                  
+                  {/* 桌面端表格 */}
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>群聊名称</th>
+                        <th>成员数量</th>
+                        <th>创建时间</th>
+                        <th>最后更新</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminUserGroups
+                        .filter(g => !adminSearchQuery || g.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) || String(g.id).includes(adminSearchQuery))
+                        .map(g => (
+                        <tr key={g.id}>
+                          <td>#{g.id}</td>
+                          <td>{g.name}</td>
+                          <td><span className="muted">{g.member_count || 0} 人</span></td>
+                          <td>{new Date(g.created_at * 1000).toLocaleString()}</td>
+                          <td>{new Date(g.updated_at * 1000).toLocaleString()}</td>
+                          <td>
+                            <button onClick={() => loadAdminGroup(g.id)} className="btn-link">查看详情</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* 移动端卡片 */}
+                  <div className="admin-card-list">
+                    {adminUserGroups
+                      .filter(g => !adminSearchQuery || g.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) || String(g.id).includes(adminSearchQuery))
+                      .map(g => (
+                        <div key={g.id} className="admin-card" onClick={() => loadAdminGroup(g.id)}>
+                          <div className="admin-card-header">
+                            <div>
+                              <div className="admin-card-title">{g.name}</div>
+                              <div className="admin-card-id">#{g.id}</div>
+                            </div>
+                          </div>
+                          <div className="admin-card-meta">
+                            <div className="admin-card-row">
+                              <span className="admin-card-label">成员数量</span>
+                              <span className="admin-card-value">{g.member_count || 0} 人</span>
+                            </div>
+                            <div className="admin-card-row">
+                              <span className="admin-card-label">创建时间</span>
+                              <span className="admin-card-value">{new Date(g.created_at * 1000).toLocaleDateString()}</span>
+                            </div>
+                            <div className="admin-card-row">
+                              <span className="admin-card-label">最后更新</span>
+                              <span className="admin-card-value">{new Date(g.updated_at * 1000).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                  
+                  {/* 群聊详情 */}
+                  {adminSelectedGroup && (
+                    <div className="admin-detail-page" style={{marginTop: '2rem'}}>
+                      <div className="admin-detail-header">
+                        <h3>{adminSelectedGroup.name}</h3>
+                        <div className="muted">ID: #{adminSelectedGroup.id}</div>
+                      </div>
+                      
+                      <div className="admin-detail-section">
+                        <h4>成员列表 ({adminSelectedGroup.members?.length || 0} 人)</h4>
+                        <div className="member-list">
+                          {adminSelectedGroup.members?.map((member: any, idx: number) => (
+                            <div key={idx} className="member-item">
+                              <div className="member-avatar">
+                                {member.is_moderator ? '🎭' : '👤'}
+                              </div>
+                              <div className="member-info">
+                                <span className="member-name">
+                                  {member.member_name}
+                                  {member.is_moderator ? <span className="badge">主持人</span> : null}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="admin-detail-section">
+                        <h4>群聊记录 ({adminGroupMessages.length} 条)</h4>
+                        <div className="admin-msgs">
+                          {adminGroupMessages.map((m, i) => {
+                            const mid = (m as any).id as number | undefined
+                            const msgType = m.sender_type === 'user' ? 'user-msg' : 
+                                          m.sender_type === 'moderator' ? 'moderator-msg' : 
+                                          'character-msg'
+                            const avatar = m.sender_type === 'user' ? '👤' :
+                                         m.sender_type === 'moderator' ? '🎭' :
+                                         '🤖'
+                            // 显示具体的名字，而不是类型
+                            const displayName = m.sender_name || (m.sender_type === 'user' ? (adminSelectedUser?.username || '用户') : '未知')
+                            const badgeText = m.sender_type === 'user' ? '用户' :
+                                            m.sender_type === 'moderator' ? '主持人' :
+                                            '角色'
+                            return (
+                              <div key={i} className={`admin-group-msg ${msgType}`}>
+                                <div className="msg-avatar">{avatar}</div>
+                                <div className="msg-body">
+                                  <div className="msg-meta">
+                                    <span className="msg-sender">{displayName}</span>
+                                    <span className="msg-badge">{badgeText}</span>
+                                    {mid && <span className="msg-id">#{mid}</span>}
+                                  </div>
+                                  <div className="msg-text">{m.content}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {adminTab === 'detail' && adminSelectedChar && (
                 <div className="admin-content">
                   <div className="admin-detail-page">
@@ -1216,39 +1511,194 @@ function App() {
                         {adminMessages.map((m, i) => {
                           const mid = (m as any).id as number | undefined
                           const canInspect = (user?.is_admin === 1) && m.role === 'user' && adminSelectedUser && adminSelectedChar
+                          const msgType = m.role === 'user' ? 'user-msg' : 'character-msg'
+                          const avatar = m.role === 'user' ? '👤' : '🤖'
+                          const senderName = m.role === 'user' ? (adminSelectedUser?.username || '用户') : adminSelectedChar.name
+                          const badgeText = m.role === 'user' ? '用户' : '角色'
+                          
                           return (
-                            <div key={i} className={`msg ${m.role}`}>
-                              <div className="msg-header">
-                                <span className="msg-role">{m.role === 'user' ? '用户' : '角色'}</span>
-                                {mid && <span className="muted">#{mid}</span>}
-                              </div>
-                              <div className="bubble">{m.content}</div>
-                              {canInspect && mid ? (
-                                <div style={{ marginTop: 4 }}>
+                            <div key={i} className={`admin-group-msg ${msgType}`}>
+                              <div className="msg-avatar">{avatar}</div>
+                              <div className="msg-body">
+                                <div className="msg-meta">
+                                  <span className="msg-sender">{senderName}</span>
+                                  <span className="msg-badge">{badgeText}</span>
+                                  {mid && <span className="msg-id">#{mid}</span>}
+                                </div>
+                                <div className="msg-text">{m.content}</div>
+                                {canInspect && mid ? (
                                   <button
-                                    className="settings"
+                                    className="admin-inspect-btn"
                                     onClick={async () => {
                                       try {
                                         const { data } = await api.get('/admin/chat/compiled', {
                                           params: { uid: adminSelectedUser!.id, cid: adminSelectedChar!.id, msg_id: mid, role: adminSelectedChar!.name }
                                         })
-                                        const pretty = JSON.stringify({ system: data.system_prompt, user: data.user_content, messages: data.messages }, null, 2)
-                                        alert(pretty)
+                                        const pretty = JSON.stringify(data, null, 2)
+                                        setInspectText(pretty)
+                                        setShowInspect(true)
                                       } catch (e: any) {
                                         alert(e?.response?.data?.error || '获取失败')
                                       }
                                     }}
                                   >
-                                    查看本次发送内容
+                                    📋 查看完整提示词
                                   </button>
-                                </div>
-                              ) : null}
+                                ) : null}
+                              </div>
                             </div>
                           )
                         })}
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {adminTab === 'feedbacks' && (
+                <div className="admin-content">
+                  <div className="admin-content-header">
+                    <h3>用户反馈</h3>
+                    <div className="muted">共 {adminFeedbacks.length} 条反馈</div>
+                  </div>
+                  
+                  {!adminSelectedFeedback ? (
+                    <>
+                      {/* 桌面端表格 */}
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>用户</th>
+                            <th>标题</th>
+                            <th>状态</th>
+                            <th>提交时间</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminFeedbacks
+                            .filter(f => !adminSearchQuery || f.title.toLowerCase().includes(adminSearchQuery.toLowerCase()) || f.username.toLowerCase().includes(adminSearchQuery.toLowerCase()))
+                            .map(f => (
+                            <tr key={f.id}>
+                              <td>#{f.id}</td>
+                              <td>{f.username}</td>
+                              <td>{f.title}</td>
+                              <td>
+                                <span className={`feedback-status ${f.status}`}>
+                                  {f.status === 'pending' ? '待处理' : f.status === 'in_progress' ? '处理中' : f.status === 'resolved' ? '已解决' : '已拒绝'}
+                                </span>
+                              </td>
+                              <td>{new Date(f.created_at * 1000).toLocaleString()}</td>
+                              <td>
+                                <button onClick={() => loadAdminFeedback(f.id)} className="btn-link">查看详情</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {/* 移动端卡片 */}
+                      <div className="admin-card-list">
+                        {adminFeedbacks
+                          .filter(f => !adminSearchQuery || f.title.toLowerCase().includes(adminSearchQuery.toLowerCase()) || f.username.toLowerCase().includes(adminSearchQuery.toLowerCase()))
+                          .map(f => (
+                            <div key={f.id} className="admin-card" onClick={() => loadAdminFeedback(f.id)}>
+                              <div className="admin-card-header">
+                                <div>
+                                  <div className="admin-card-title">{f.title}</div>
+                                  <div className="admin-card-id">#{f.id}</div>
+                                </div>
+                                <span className={`feedback-status ${f.status}`}>
+                                  {f.status === 'pending' ? '待处理' : f.status === 'in_progress' ? '处理中' : f.status === 'resolved' ? '已解决' : '已拒绝'}
+                                </span>
+                              </div>
+                              <div className="admin-card-meta">
+                                <div className="admin-card-row">
+                                  <span className="admin-card-label">用户</span>
+                                  <span className="admin-card-value">{f.username}</span>
+                                </div>
+                                <div className="admin-card-row">
+                                  <span className="admin-card-label">提交时间</span>
+                                  <span className="admin-card-value">{new Date(f.created_at * 1000).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="admin-detail-page">
+                      <div className="admin-detail-header">
+                        <h3>{adminSelectedFeedback.title}</h3>
+                        <div>
+                          <button onClick={() => setAdminSelectedFeedback(null)} className="settings">返回列表</button>
+                        </div>
+                      </div>
+                      
+                      <div className="admin-detail-section">
+                        <div style={{display: 'flex', gap: '16px', marginBottom: '16px'}}>
+                          <div><strong>反馈ID:</strong> #{adminSelectedFeedback.id}</div>
+                          <div><strong>用户:</strong> {adminSelectedFeedback.username}</div>
+                          <div><strong>提交时间:</strong> {new Date(adminSelectedFeedback.created_at * 1000).toLocaleString()}</div>
+                        </div>
+                        
+                        <h4>反馈内容</h4>
+                        <div className="feedback-content">
+                          {adminSelectedFeedback.content}
+                        </div>
+                        
+                        {adminSelectedFeedback.attachments && JSON.parse(adminSelectedFeedback.attachments).length > 0 && (
+                          <div style={{marginTop: '16px'}}>
+                            <h4>附件图片</h4>
+                            <div style={{display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '12px'}}>
+                              {JSON.parse(adminSelectedFeedback.attachments).map((url: string, idx: number) => (
+                                <a key={idx} href={url} target="_blank" rel="noreferrer">
+                                  <img src={url} alt="" style={{width: '150px', height: '150px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)'}} />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="admin-detail-section">
+                        <h4>管理员回复</h4>
+                        <label>
+                          状态
+                          <select value={feedbackStatus} onChange={e => setFeedbackStatus(e.target.value as any)}>
+                            <option value="pending">待处理</option>
+                            <option value="in_progress">处理中</option>
+                            <option value="resolved">已解决</option>
+                            <option value="rejected">已拒绝</option>
+                          </select>
+                        </label>
+                        <label>
+                          回复内容
+                          <textarea 
+                            value={feedbackReply}
+                            onChange={e => setFeedbackReply(e.target.value)}
+                            placeholder="给用户的回复..."
+                            rows={6}
+                            style={{width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', resize: 'vertical'}}
+                          />
+                        </label>
+                        <div style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                          <button className="primary" onClick={() => updateFeedbackStatus(adminSelectedFeedback.id)}>保存更新</button>
+                          <button onClick={() => deleteFeedback(adminSelectedFeedback.id)} style={{background: '#ef4444', color: 'white'}}>删除反馈</button>
+                        </div>
+                        {adminSelectedFeedback.admin_reply && (
+                          <div style={{marginTop: '16px', padding: '12px', background: '#f3f4f6', borderRadius: '8px'}}>
+                            <strong>当前回复:</strong>
+                            <div style={{marginTop: '8px'}}>{adminSelectedFeedback.admin_reply}</div>
+                            <div style={{marginTop: '8px', fontSize: '12px', color: '#6b7280'}}>
+                              更新时间: {new Date(adminSelectedFeedback.updated_at * 1000).toLocaleString()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1331,6 +1781,21 @@ function App() {
               </div>
             ))}
           </div>
+          {/* 反馈按钮（非管理员） */}
+          {user && user.is_admin !== 1 && (
+            <div style={{padding: '16px', borderTop: '1px solid var(--border)'}}>
+              <button 
+                className="feedback-btn-sidebar"
+                onClick={() => {
+                  setShowFeedback(true)
+                  setFeedbackTab('submit')
+                  loadMyFeedbacks()
+                }}
+              >
+                💬 我要反馈
+              </button>
+            </div>
+          )}
         </aside>
       )}
 
@@ -1362,6 +1827,21 @@ function App() {
               )}
             </div>
           </div>
+          {/* 反馈按钮（非管理员） */}
+          {user && user.is_admin !== 1 && (
+            <div style={{padding: '16px', borderTop: '1px solid var(--border)'}}>
+              <button 
+                className="feedback-btn-sidebar"
+                onClick={() => {
+                  setShowFeedback(true)
+                  setFeedbackTab('submit')
+                  loadMyFeedbacks()
+                }}
+              >
+                💬 我要反馈
+              </button>
+            </div>
+          )}
         </aside>
       )}
 
@@ -1763,6 +2243,233 @@ function App() {
               <button onClick={()=>{ setShowPoly(false); setPolyLoading(false); setProgress(null); }}>取消</button>
               <button className="primary" onClick={()=>{ setShowPoly(false); createRole(); }}>完成</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 反馈弹窗 */}
+      {showFeedback && (
+        <div className="modal" onClick={() => {
+          setShowFeedback(false)
+          setFeedbackTitle('')
+          setFeedbackContent('')
+          setFeedbackAttachments([])
+          setSelectedFeedback(null)
+        }}>
+          <div className="dialog feedback-dialog" onClick={e => e.stopPropagation()}>
+            <div className="feedback-header">
+              <h3>💬 用户反馈</h3>
+              <button className="close-btn" onClick={() => {
+                setShowFeedback(false)
+                setFeedbackTitle('')
+                setFeedbackContent('')
+                setFeedbackAttachments([])
+                setSelectedFeedback(null)
+              }}>×</button>
+            </div>
+            
+            <div className="feedback-tabs">
+              <button 
+                className={feedbackTab === 'submit' ? 'active' : ''}
+                onClick={() => {
+                  setFeedbackTab('submit')
+                  setSelectedFeedback(null)
+                }}
+              >
+                ✍️ 提交反馈
+              </button>
+              <button 
+                className={feedbackTab === 'history' ? 'active' : ''}
+                onClick={() => setFeedbackTab('history')}
+              >
+                📋 我的反馈 {myFeedbacks.length > 0 && `(${myFeedbacks.length})`}
+              </button>
+            </div>
+
+            {feedbackTab === 'submit' ? (
+              <div className="feedback-content">
+            <label>
+              标题
+              <input 
+                type="text" 
+                value={feedbackTitle}
+                onChange={e => setFeedbackTitle(e.target.value)}
+                placeholder="请简要描述问题"
+              />
+            </label>
+            <label>
+              详细内容
+              <textarea 
+                value={feedbackContent}
+                onChange={e => setFeedbackContent(e.target.value)}
+                placeholder="请详细描述您遇到的问题或建议"
+                rows={6}
+                style={{width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', resize: 'vertical'}}
+              />
+            </label>
+            <label>
+              上传图片（可选）
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={handleFeedbackImageUpload}
+                disabled={feedbackUploading}
+              />
+              {feedbackUploading && <div style={{marginTop: '8px', color: '#6b7280'}}>上传中...</div>}
+            </label>
+            {feedbackAttachments.length > 0 && (
+              <div style={{marginTop: '12px'}}>
+                <div style={{fontSize: '14px', fontWeight: 600, marginBottom: '8px'}}>已上传的图片：</div>
+                <div style={{display: 'flex', flexWrap: 'wrap', gap: '12px'}}>
+                  {feedbackAttachments.map((url, idx) => (
+                    <div key={idx} style={{position: 'relative'}}>
+                      <img 
+                        src={url} 
+                        alt={`附件${idx + 1}`} 
+                        style={{
+                          width: '120px', 
+                          height: '120px', 
+                          objectFit: 'cover', 
+                          borderRadius: '8px', 
+                          border: '2px solid var(--border)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(url, '_blank')}
+                        title="点击查看大图"
+                      />
+                      <button 
+                        onClick={() => setFeedbackAttachments(feedbackAttachments.filter((_, i) => i !== idx))}
+                        style={{
+                          position: 'absolute', 
+                          top: '-8px', 
+                          right: '-8px', 
+                          width: '24px', 
+                          height: '24px', 
+                          borderRadius: '50%', 
+                          background: '#ef4444', 
+                          color: 'white', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          fontSize: '16px', 
+                          fontWeight: 'bold',
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}
+                        title="删除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="feedback-actions">
+              <button onClick={() => {
+                setShowFeedback(false)
+                setFeedbackTitle('')
+                setFeedbackContent('')
+                setFeedbackAttachments([])
+              }} className="btn-secondary">取消</button>
+              <button className="btn-primary" onClick={submitFeedback}>✅ 提交反馈</button>
+            </div>
+              </div>
+            ) : (
+              <div className="feedback-content">
+                {!selectedFeedback ? (
+                  <>
+                    {myFeedbacks.length === 0 ? (
+                      <div className="empty-state">
+                        <div style={{fontSize: '48px', marginBottom: '16px'}}>📭</div>
+                        <p style={{color: '#6b7280'}}>暂无反馈记录</p>
+                      </div>
+                    ) : (
+                      <div className="feedback-list">
+                        {myFeedbacks.map(fb => (
+                          <div key={fb.id} className="feedback-item" onClick={() => setSelectedFeedback(fb)}>
+                            <div className="feedback-item-header">
+                              <h4>{fb.title}</h4>
+                              <span className={`feedback-status ${fb.status}`}>
+                                {fb.status === 'pending' ? '⏳ 待处理' : 
+                                 fb.status === 'in_progress' ? '🔄 处理中' : 
+                                 fb.status === 'resolved' ? '✅ 已解决' : '❌ 已拒绝'}
+                              </span>
+                            </div>
+                            <p className="feedback-item-content">{fb.content}</p>
+                            <div className="feedback-item-footer">
+                              <span className="feedback-item-time">
+                                {new Date(fb.created_at * 1000).toLocaleString()}
+                              </span>
+                              {fb.admin_reply && <span className="has-reply">💬 有回复</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="feedback-detail">
+                    <button onClick={() => setSelectedFeedback(null)} className="back-btn">← 返回列表</button>
+                    
+                    <div className="feedback-detail-header">
+                      <h3>{selectedFeedback.title}</h3>
+                      <span className={`feedback-status ${selectedFeedback.status}`}>
+                        {selectedFeedback.status === 'pending' ? '⏳ 待处理' : 
+                         selectedFeedback.status === 'in_progress' ? '🔄 处理中' : 
+                         selectedFeedback.status === 'resolved' ? '✅ 已解决' : '❌ 已拒绝'}
+                      </span>
+                    </div>
+                    
+                    <div className="feedback-detail-section">
+                      <label>反馈内容</label>
+                      <div className="feedback-text">{selectedFeedback.content}</div>
+                    </div>
+                    
+                    {selectedFeedback.attachments && JSON.parse(selectedFeedback.attachments).length > 0 && (
+                      <div className="feedback-detail-section">
+                        <label>附件图片</label>
+                        <div style={{display: 'flex', flexWrap: 'wrap', gap: '12px'}}>
+                          {JSON.parse(selectedFeedback.attachments).map((url: string, idx: number) => (
+                            <a key={idx} href={url} target="_blank" rel="noreferrer">
+                              <img 
+                                src={url} 
+                                alt={`附件${idx + 1}`}
+                                style={{
+                                  width: '100px',
+                                  height: '100px',
+                                  objectFit: 'cover',
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--border)'
+                                }}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedFeedback.admin_reply && (
+                      <div className="feedback-detail-section admin-reply-section">
+                        <label>📢 管理员回复</label>
+                        <div className="admin-reply-box">
+                          {selectedFeedback.admin_reply}
+                        </div>
+                        <div className="reply-time">
+                          回复时间: {new Date(selectedFeedback.updated_at * 1000).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="feedback-detail-footer">
+                      <span>提交时间: {new Date(selectedFeedback.created_at * 1000).toLocaleString()}</span>
+                      <span>反馈ID: #{selectedFeedback.id}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

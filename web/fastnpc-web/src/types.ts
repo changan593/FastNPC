@@ -43,11 +43,12 @@ export interface GroupItem {
   name: string;
   created_at: number;
   updated_at: number;
+  member_count?: number;
 }
 
 export interface GroupMessage {
   id?: number;
-  sender_type: 'user' | 'character';
+  sender_type: 'user' | 'character' | 'moderator';
   sender_id?: number;
   sender_name: string;
   content: string;
@@ -64,5 +65,18 @@ export interface MemberBrief {
   name: string;
   type: 'user' | 'character';
   brief: string;
+}
+
+export interface Feedback {
+  id: number;
+  user_id: number;
+  username: string;
+  title: string;
+  content: string;
+  attachments?: string;
+  status: 'pending' | 'in_progress' | 'resolved' | 'rejected';
+  admin_reply?: string;
+  created_at: number;
+  updated_at: number;
 }
 

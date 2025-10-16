@@ -190,6 +190,24 @@ def init_db():
         """
     )
     
+    # 反馈表
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feedbacks(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            attachments TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            admin_reply TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        """
+    )
+    
     # 为已存在的表添加中控相关字段
     try:
         cur.execute("PRAGMA table_info(group_messages)")
@@ -651,7 +669,19 @@ def list_group_chats(user_id: int) -> list[Dict[str, Any]]:
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, name, created_at, updated_at FROM group_chats WHERE user_id=? ORDER BY updated_at DESC",
+            """
+            SELECT 
+                gc.id, 
+                gc.name, 
+                gc.created_at, 
+                gc.updated_at,
+                COUNT(gm.id) as member_count
+            FROM group_chats gc
+            LEFT JOIN group_members gm ON gc.id = gm.group_id
+            WHERE gc.user_id=? 
+            GROUP BY gc.id
+            ORDER BY gc.updated_at DESC
+            """,
             (user_id,)
         )
         rows = cur.fetchall()
@@ -800,5 +830,111 @@ def remove_group_member(group_id: int, member_name: str) -> None:
     finally:
         conn.close()
 
+
+# ============= 反馈相关函数 =============
+
+def create_feedback(user_id: int, title: str, content: str, attachments: str = None) -> int:
+    """创建反馈"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        now = int(time.time())
+        cur.execute(
+            "INSERT INTO feedbacks(user_id, title, content, attachments, status, created_at, updated_at) VALUES(?,?,?,?,?,?,?)",
+            (user_id, title, content, attachments, 'pending', now, now)
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def list_feedbacks(user_id: int = None, status: str = None) -> list[Dict[str, Any]]:
+    """列出反馈
+    
+    Args:
+        user_id: 如果指定，只返回该用户的反馈；否则返回所有反馈（管理员）
+        status: 如果指定，只返回该状态的反馈
+    """
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        query = """
+            SELECT f.id, f.user_id, u.username, f.title, f.content, f.attachments, 
+                   f.status, f.admin_reply, f.created_at, f.updated_at
+            FROM feedbacks f
+            LEFT JOIN users u ON f.user_id = u.id
+            WHERE 1=1
+        """
+        params = []
+        
+        if user_id is not None:
+            query += " AND f.user_id=?"
+            params.append(user_id)
+        
+        if status is not None:
+            query += " AND f.status=?"
+            params.append(status)
+        
+        query += " ORDER BY f.created_at DESC"
+        
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_feedback_detail(feedback_id: int) -> Optional[Dict[str, Any]]:
+    """获取反馈详情"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT f.id, f.user_id, u.username, f.title, f.content, f.attachments, 
+                   f.status, f.admin_reply, f.created_at, f.updated_at
+            FROM feedbacks f
+            LEFT JOIN users u ON f.user_id = u.id
+            WHERE f.id=?
+            """,
+            (feedback_id,)
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def update_feedback_status(feedback_id: int, status: str, admin_reply: str = None) -> None:
+    """更新反馈状态和管理员回复"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        now = int(time.time())
+        if admin_reply:
+            cur.execute(
+                "UPDATE feedbacks SET status=?, admin_reply=?, updated_at=? WHERE id=?",
+                (status, admin_reply, now, feedback_id)
+            )
+        else:
+            cur.execute(
+                "UPDATE feedbacks SET status=?, updated_at=? WHERE id=?",
+                (status, now, feedback_id)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_feedback(feedback_id: int) -> None:
+    """删除反馈"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM feedbacks WHERE id=?", (feedback_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 

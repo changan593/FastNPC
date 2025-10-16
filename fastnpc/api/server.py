@@ -23,6 +23,7 @@ from fastnpc.api.routes.datasource_routes import router as datasource_router
 from fastnpc.api.routes.task_routes import router as task_router
 from fastnpc.api.routes.template_routes import router as template_router
 from fastnpc.api.routes.group_routes import router as group_router
+from fastnpc.api.routes.feedback_routes import router as feedback_router
 
 
 # 确保角色目录存在
@@ -51,6 +52,15 @@ app.mount(
     name="static",
 )
 
+# 反馈附件目录
+FEEDBACK_DIR = CHAR_DIR.parent / "Feedbacks"
+os.makedirs(FEEDBACK_DIR.as_posix(), exist_ok=True)
+app.mount(
+    "/feedbacks",
+    StaticFiles(directory=FEEDBACK_DIR.as_posix()),
+    name="feedbacks",
+)
+
 # 初始化数据库
 try:
     init_db()
@@ -67,6 +77,7 @@ app.include_router(chat_router)      # 聊天路由
 app.include_router(datasource_router) # 数据源路由
 app.include_router(task_router)      # 任务路由
 app.include_router(group_router)     # 群聊路由
+app.include_router(feedback_router)  # 反馈路由
 
 
 def create_app() -> FastAPI:
