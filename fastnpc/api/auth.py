@@ -101,6 +101,7 @@ def init_db():
                 model TEXT,
                 source TEXT,
                 structured_json TEXT,
+                baike_content TEXT,
                 created_at BIGINT NOT NULL,
                 updated_at BIGINT NOT NULL,
                 UNIQUE(user_id, name)
@@ -141,6 +142,7 @@ def init_db():
                 model TEXT,
                 source TEXT,
                 structured_json TEXT,
+                baike_content TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 UNIQUE(user_id, name)
@@ -161,6 +163,14 @@ def init_db():
         )
     conn.commit()
     
+    # 为characters表添加baike_content字段（存储百科全文）
+    try:
+        if not _column_exists(cur, 'characters', 'baike_content'):
+            cur.execute("ALTER TABLE characters ADD COLUMN baike_content TEXT")
+            conn.commit()
+    except Exception:
+        pass
+    
     # 为messages表添加compressed字段（标记是否已压缩为短期记忆）
     try:
         if not _column_exists(cur, 'messages', 'compressed'):
@@ -176,6 +186,17 @@ def init_db():
     try:
         if not _column_exists(cur, 'messages', 'system_prompt_snapshot'):
             cur.execute("ALTER TABLE messages ADD COLUMN system_prompt_snapshot TEXT")
+            conn.commit()
+    except Exception:
+        pass
+    
+    # 为character_source_info表添加source_info_size字段（存储百科内容字符数）
+    try:
+        if not _column_exists(cur, 'character_source_info', 'source_info_size'):
+            if USE_POSTGRESQL:
+                cur.execute("ALTER TABLE character_source_info ADD COLUMN source_info_size INT")
+            else:
+                cur.execute("ALTER TABLE character_source_info ADD COLUMN source_info_size INTEGER")
             conn.commit()
     except Exception:
         pass
@@ -317,6 +338,192 @@ def init_db():
             )
             """
         )
+        
+        # ===== 角色详细信息表 =====
+        
+        # 基础身份信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_basic_info(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                name TEXT,
+                age TEXT,
+                gender TEXT,
+                occupation TEXT,
+                identity_background TEXT,
+                appearance TEXT,
+                titles TEXT,
+                brief_intro TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 知识与能力
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_knowledge(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                knowledge_domain TEXT,
+                skills TEXT,
+                limitations TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 个性与行为设定
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_personality(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                traits TEXT,
+                values TEXT,
+                emotion_style TEXT,
+                speaking_style TEXT,
+                preferences TEXT,
+                dislikes TEXT,
+                motivation_goals TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 对话与交互规范
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_dialogue_rules(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                tone TEXT,
+                language_style TEXT,
+                behavior_constraints TEXT,
+                interaction_pattern TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 任务/功能性信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_tasks(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                task_goal TEXT,
+                dialogue_intent TEXT,
+                interaction_limits TEXT,
+                trigger_conditions TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 环境与世界观
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_worldview(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                worldview TEXT,
+                timeline TEXT,
+                social_rules TEXT,
+                external_resources TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 背景故事
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_background(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                origin TEXT,
+                current_situation TEXT,
+                secrets TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 经历表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_experiences(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL,
+                experience_text TEXT NOT NULL,
+                sequence_order INT NOT NULL,
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_exp ON character_experiences(character_id, sequence_order)")
+        
+        # 关系网络表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_relationships(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL,
+                relationship_text TEXT NOT NULL,
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_rel ON character_relationships(character_id)")
+        
+        # 系统与控制参数
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_system_params(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                consistency_control TEXT,
+                preference_control TEXT,
+                safety_limits TEXT,
+                deduction_range TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 来源信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_source_info(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL UNIQUE,
+                unique_id TEXT,
+                source_url TEXT,
+                source_info_size INT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 记忆表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_memories(
+                id SERIAL PRIMARY KEY,
+                character_id INT NOT NULL,
+                memory_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_memory ON character_memories(character_id, memory_type, created_at)")
+        
     else:
         cur.execute(
             """
@@ -380,6 +587,191 @@ def init_db():
             )
             """
         )
+        
+        # ===== 角色详细信息表 (SQLite) =====
+        
+        # 基础身份信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_basic_info(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                name TEXT,
+                age TEXT,
+                gender TEXT,
+                occupation TEXT,
+                identity_background TEXT,
+                appearance TEXT,
+                titles TEXT,
+                brief_intro TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 知识与能力
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_knowledge(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                knowledge_domain TEXT,
+                skills TEXT,
+                limitations TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 个性与行为设定
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_personality(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                traits TEXT,
+                values TEXT,
+                emotion_style TEXT,
+                speaking_style TEXT,
+                preferences TEXT,
+                dislikes TEXT,
+                motivation_goals TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 对话与交互规范
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_dialogue_rules(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                tone TEXT,
+                language_style TEXT,
+                behavior_constraints TEXT,
+                interaction_pattern TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 任务/功能性信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_tasks(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                task_goal TEXT,
+                dialogue_intent TEXT,
+                interaction_limits TEXT,
+                trigger_conditions TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 环境与世界观
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_worldview(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                worldview TEXT,
+                timeline TEXT,
+                social_rules TEXT,
+                external_resources TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 背景故事
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_background(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                origin TEXT,
+                current_situation TEXT,
+                secrets TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 经历表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_experiences(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL,
+                experience_text TEXT NOT NULL,
+                sequence_order INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_exp ON character_experiences(character_id, sequence_order)")
+        
+        # 关系网络表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_relationships(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL,
+                relationship_text TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_rel ON character_relationships(character_id)")
+        
+        # 系统与控制参数
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_system_params(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                consistency_control TEXT,
+                preference_control TEXT,
+                safety_limits TEXT,
+                deduction_range TEXT,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 来源信息
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_source_info(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL UNIQUE,
+                unique_id TEXT,
+                source_url TEXT,
+                source_info_size INTEGER,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        
+        # 记忆表
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS character_memories(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_id INTEGER NOT NULL,
+                memory_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_char_memory ON character_memories(character_id, memory_type, created_at)")
     
     # 为已存在的表添加中控相关字段
     try:
@@ -1200,5 +1592,230 @@ def delete_feedback(feedback_id: int) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# ============= 角色完整数据保存/加载函数 =============
+
+def save_character_full_data(user_id: int, name: str, structured_data: Dict[str, Any], baike_content: str = None) -> int:
+    """保存完整角色数据到所有相关表
+    
+    Args:
+        user_id: 用户ID
+        name: 角色名称
+        structured_data: 结构化数据（字典格式）
+        baike_content: 百科全文（JSON字符串）
+    
+    Returns:
+        character_id: 角色ID
+    """
+    import json
+    conn = _get_conn()
+    now = int(time.time())
+    
+    try:
+        cur = conn.cursor()
+        
+        # 1. 先创建或更新角色主记录
+        cur.execute("SELECT id FROM characters WHERE user_id=%s AND name=%s", (user_id, name))
+        row = cur.fetchone()
+        
+        if row:
+            # 更新现有角色
+            character_id = int(_row_to_dict(row, cur)['id']) if USE_POSTGRESQL else int(row['id'])
+            cur.execute(
+                "UPDATE characters SET baike_content=%s, updated_at=%s WHERE id=%s",
+                (baike_content, now, character_id)
+            )
+        else:
+            # 创建新角色
+            if USE_POSTGRESQL:
+                cur.execute(
+                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, now, now)
+                )
+                character_id = int(cur.fetchone()[0])
+                conn.commit()  # 立即提交，确保后续外键关联能找到这条记录
+            else:
+                cur.execute(
+                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, now, now)
+                )
+                conn.commit()
+                character_id = int(cur.lastrowid)
+        
+        # 2. 保存基础身份信息
+        basic_info = structured_data.get('基础身份信息', {})
+        if basic_info:
+            cur.execute("DELETE FROM character_basic_info WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_basic_info(character_id, name, age, gender, occupation, identity_background, appearance, titles, brief_intro)
+                   VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (character_id, basic_info.get('姓名'), basic_info.get('年龄'), basic_info.get('性别'),
+                 basic_info.get('职业'), basic_info.get('身份背景'), basic_info.get('外貌特征'),
+                 basic_info.get('称谓/头衔'), basic_info.get('人物简介'))
+            )
+        
+        # 3. 保存知识与能力
+        knowledge = structured_data.get('知识与能力', {})
+        if knowledge:
+            cur.execute("DELETE FROM character_knowledge WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_knowledge(character_id, knowledge_domain, skills, limitations)
+                   VALUES(%s,%s,%s,%s)""",
+                (character_id, knowledge.get('知识领域'), knowledge.get('技能'), knowledge.get('限制'))
+            )
+        
+        # 4. 保存个性与行为设定
+        personality = structured_data.get('个性与行为设定', {})
+        if personality:
+            cur.execute("DELETE FROM character_personality WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_personality(character_id, traits, values, emotion_style, speaking_style, preferences, dislikes, motivation_goals)
+                   VALUES(%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (character_id, personality.get('性格特质'), personality.get('价值观'), personality.get('情绪风格'),
+                 personality.get('说话方式'), personality.get('偏好'), personality.get('厌恶'), personality.get('动机与目标'))
+            )
+        
+        # 5. 保存对话与交互规范
+        dialogue = structured_data.get('对话与交互规范', {})
+        if dialogue:
+            cur.execute("DELETE FROM character_dialogue_rules WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_dialogue_rules(character_id, tone, language_style, behavior_constraints, interaction_pattern)
+                   VALUES(%s,%s,%s,%s,%s)""",
+                (character_id, dialogue.get('语气'), dialogue.get('语言风格'), dialogue.get('行为约束'), dialogue.get('互动模式'))
+            )
+        
+        # 6. 保存任务/功能性信息
+        tasks = structured_data.get('任务/功能性信息', {})
+        if tasks:
+            cur.execute("DELETE FROM character_tasks WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_tasks(character_id, task_goal, dialogue_intent, interaction_limits, trigger_conditions)
+                   VALUES(%s,%s,%s,%s,%s)""",
+                (character_id, tasks.get('任务目标'), tasks.get('对话意图'), tasks.get('交互限制'), tasks.get('触发条件'))
+            )
+        
+        # 7. 保存环境与世界观
+        worldview = structured_data.get('环境与世界观', {})
+        if worldview:
+            cur.execute("DELETE FROM character_worldview WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_worldview(character_id, worldview, timeline, social_rules, external_resources)
+                   VALUES(%s,%s,%s,%s,%s)""",
+                (character_id, worldview.get('世界观'), worldview.get('时间线'), worldview.get('社会规则'), worldview.get('外部资源'))
+            )
+        
+        # 8. 保存背景故事
+        background = structured_data.get('背景故事', {})
+        if background:
+            cur.execute("DELETE FROM character_background WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_background(character_id, origin, current_situation, secrets)
+                   VALUES(%s,%s,%s,%s)""",
+                (character_id, background.get('出身'), background.get('当前处境'), background.get('秘密'))
+            )
+            
+            # 保存经历
+            experiences = background.get('经历', [])
+            if experiences:
+                cur.execute("DELETE FROM character_experiences WHERE character_id=%s", (character_id,))
+                for idx, exp in enumerate(experiences):
+                    cur.execute(
+                        """INSERT INTO character_experiences(character_id, experience_text, sequence_order, created_at)
+                           VALUES(%s,%s,%s,%s)""",
+                        (character_id, exp, idx, now)
+                    )
+            
+            # 保存关系网络
+            relationships = background.get('关系网络', [])
+            if relationships:
+                cur.execute("DELETE FROM character_relationships WHERE character_id=%s", (character_id,))
+                for rel in relationships:
+                    cur.execute(
+                        """INSERT INTO character_relationships(character_id, relationship_text, created_at)
+                           VALUES(%s,%s,%s)""",
+                        (character_id, rel, now)
+                    )
+        
+        # 9. 保存系统与控制参数
+        system_params = structured_data.get('系统与控制参数', {})
+        if system_params:
+            cur.execute("DELETE FROM character_system_params WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_system_params(character_id, consistency_control, preference_control, safety_limits, deduction_range)
+                   VALUES(%s,%s,%s,%s,%s)""",
+                (character_id, system_params.get('一致性控制'), system_params.get('偏好控制'), 
+                 system_params.get('安全限制'), system_params.get('演绎范围'))
+            )
+        
+        # 10. 保存来源信息
+        source_info = structured_data.get('来源信息', {})
+        if source_info:
+            # 获取现有的 source_info_size（如果 baike_content 为 None，保留原值）
+            if baike_content is not None:
+                source_info_size = len(baike_content)
+            else:
+                # 保留原有的值
+                cur.execute("SELECT source_info_size FROM character_source_info WHERE character_id=%s", (character_id,))
+                existing_row = cur.fetchone()
+                if existing_row:
+                    source_info_size = existing_row[0] if existing_row[0] is not None else 0
+                else:
+                    source_info_size = 0
+            
+            cur.execute("DELETE FROM character_source_info WHERE character_id=%s", (character_id,))
+            cur.execute(
+                """INSERT INTO character_source_info(character_id, unique_id, source_url, source_info_size)
+                   VALUES(%s,%s,%s,%s)""",
+                (character_id, source_info.get('唯一标识'), source_info.get('链接'), source_info_size)
+            )
+        
+        conn.commit()
+        return character_id
+        
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+
+def load_character_full_data(character_id: int) -> Optional[Dict[str, Any]]:
+    """从所有相关表加载完整角色数据
+    
+    Args:
+        character_id: 角色ID
+    
+    Returns:
+        完整的角色数据字典，如果角色不存在则返回 None
+    """
+    from fastnpc.api.auth_char_data import load_character_full_data_impl
+    return load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, character_id)
+
+
+def save_character_memories(character_id: int, short_term: List[str] = None, long_term: List[str] = None) -> None:
+    """保存角色记忆到数据库
+    
+    Args:
+        character_id: 角色ID
+        short_term: 短期记忆列表
+        long_term: 长期记忆列表
+    """
+    from fastnpc.api.auth_char_data import save_character_memories_impl
+    return save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id, short_term, long_term)
+
+
+def load_character_memories(character_id: int) -> Dict[str, List[str]]:
+    """从数据库加载角色记忆
+    
+    Args:
+        character_id: 角色ID
+    
+    Returns:
+        包含 'short_term' 和 'long_term' 键的字典
+    """
+    from fastnpc.api.auth_char_data import load_character_memories_impl
+    return load_character_memories_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, character_id)
 
 

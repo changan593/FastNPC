@@ -13,12 +13,48 @@ from fastapi import Request, HTTPException
 
 from fastnpc.config import CHAR_DIR
 from fastnpc.utils.roles import normalize_role_name
-from fastnpc.api.auth import verify_cookie, list_users, get_or_create_character, update_character_structured
+from fastnpc.api.auth import (
+    verify_cookie, list_users, get_or_create_character, update_character_structured,
+    load_character_full_data, get_character_id, save_character_memories, load_character_memories
+)
 from fastnpc.pipeline.structure import build_system_prompt
 from fastnpc.api.state import sessions, sessions_lock
 
 
 CHAR_DIR_STR = CHAR_DIR.as_posix()
+
+
+def _load_character_profile(role: str, user_id: int) -> Optional[Dict[str, Any]]:
+    """从数据库加载角色profile，失败则尝试从文件加载（向后兼容）
+    
+    返回格式与原来的 structured JSON 一致
+    """
+    try:
+        # 1. 尝试从数据库加载
+        character_id = get_character_id(user_id, normalize_role_name(role))
+        if character_id:
+            full_data = load_character_full_data(character_id)
+            if full_data:
+                # 移除内部元数据，只保留原有的结构化数据
+                profile = {k: v for k, v in full_data.items() if k not in ['_metadata', 'baike_content']}
+                # 添加记忆（从 character_memories 表）
+                memories = load_character_memories(character_id)
+                profile['短期记忆'] = memories.get('short_term', [])
+                profile['长期记忆'] = memories.get('long_term', [])
+                return profile
+    except Exception as e:
+        print(f"[WARN] 从数据库加载角色失败: {e}")
+    
+    # 2. 降级到文件加载（向后兼容）
+    try:
+        path = _structured_path_for_role(normalize_role_name(role), user_id=user_id)
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[WARN] 从文件加载角色失败: {e}")
+    
+    return None
 
 
 def _require_user(request: Request) -> Optional[Dict[str, Any]]:
@@ -291,11 +327,15 @@ def _ensure_chat_session_for_role(role: str, user_id: Optional[int] = None) -> s
                 return sid
     # 新建
     role = normalize_role_name(role)
-    path = _structured_path_for_role(role, user_id=user_id)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="结构化文件不存在")
-    with open(path, "r", encoding="utf-8") as f:
-        profile = json.load(f)
+    # 从数据库加载角色profile（自动降级到文件）
+    profile = _load_character_profile(role, user_id) if user_id else None
+    if not profile:
+        # 尝试文件加载（兼容）
+        path = _structured_path_for_role(role, user_id=user_id)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="角色不存在")
+        with open(path, "r", encoding="utf-8") as f:
+            profile = json.load(f)
     system_prompt = build_system_prompt(profile)
     sid = uuid.uuid4().hex
     with sessions_lock:

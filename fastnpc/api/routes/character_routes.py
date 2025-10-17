@@ -19,6 +19,9 @@ from fastnpc.api.auth import (
     update_character_structured,
     rename_character,
     delete_character,
+    load_character_full_data,
+    save_character_full_data,
+    get_character_id,
 )
 from fastnpc.api.utils import (
     _require_user,
@@ -266,19 +269,35 @@ async def api_copy_character(name: str, request: Request):
 
 @router.get("/api/characters/{role}/structured")
 def api_get_structured(role: str, request: Request):
+    """从数据库获取角色的结构化数据"""
     user = _require_user(request)
     if not user:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     role = normalize_role_name(role)
-    path = _structured_path_for_role(role, user_id=user.get('uid'))
-    if not os.path.exists(path):
+    
+    # 获取角色ID
+    char_id = get_character_id(user.get('uid'), role)
+    if not char_id:
         return JSONResponse({"error": "not_found"}, status_code=404)
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    
+    # 从数据库加载完整数据
+    full_data = load_character_full_data(char_id)
+    if not full_data:
+        # 如果数据库没有，尝试从文件加载（向后兼容）
+        path = _structured_path_for_role(role, user_id=user.get('uid'))
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    
+    # 移除内部元数据和百科内容，只返回结构化数据
+    response_data = {k: v for k, v in full_data.items() if k not in ['_metadata', 'baike_content']}
+    return response_data
 
 
 @router.put("/api/characters/{role}/structured")
 async def api_put_structured(role: str, request: Request):
+    """更新角色的结构化数据到数据库"""
     user = _require_user(request)
     if not user:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -286,31 +305,70 @@ async def api_put_structured(role: str, request: Request):
         payload = await request.json()
     except Exception as e:
         return JSONResponse({"error": f"invalid json: {e}"}, status_code=400)
+    
     role = normalize_role_name(role)
-    path = _structured_path_for_role(role, user_id=user.get('uid'))
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    # 重置该角色会话，以便基于新设定生成 system 提示
-    with sessions_lock:
-        for sid, sess in list(sessions.items()):
-            if sess.get("role") == role:
-                del sessions[sid]
-    return {"ok": True}
+    
+    # 获取角色ID
+    char_id = get_character_id(user.get('uid'), role)
+    if not char_id:
+        return JSONResponse({"error": "not_found"}, status_code=404)
+    
+    try:
+        # 保存到数据库（不包含百科内容，百科内容在创建时已保存）
+        save_character_full_data(
+            user_id=user.get('uid'),
+            name=role,
+            structured_data=payload,
+            baike_content=None  # 不更新百科内容
+        )
+        
+        # 同时更新文件备份
+        path = _structured_path_for_role(role, user_id=user.get('uid'))
+        if os.path.exists(os.path.dirname(path)):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        
+        # 重置该角色会话，以便基于新设定生成 system 提示
+        with sessions_lock:
+            for sid, sess in list(sessions.items()):
+                if sess.get("role") == role:
+                    del sessions[sid]
+        
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"error": f"save failed: {e}"}, status_code=500)
 
 
 # HTML 模板路由
 
 @router.get("/structured/view", response_class=HTMLResponse)
 def structured_view(request: Request, role: str):
+    """查看角色结构化数据（从数据库加载）"""
     user = _require_user(request)
     uid = user.get('uid') if user else None
     role = normalize_role_name(role)
-    path = _structured_path_for_role(role, user_id=uid)
-    if not os.path.exists(path):
+    
+    # 获取角色ID
+    char_id = get_character_id(uid, role)
+    if not char_id:
         from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="结构化文件不存在")
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
+        raise HTTPException(status_code=404, detail="角色不存在")
+    
+    # 从数据库加载
+    full_data = load_character_full_data(char_id)
+    if not full_data:
+        # 向后兼容：如果数据库没有，从文件加载
+        path = _structured_path_for_role(role, user_id=uid)
+        if not os.path.exists(path):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="结构化文件不存在")
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+    else:
+        # 从数据库数据生成JSON字符串
+        profile = {k: v for k, v in full_data.items() if k not in ['_metadata', 'baike_content']}
+        content = json.dumps(profile, ensure_ascii=False, indent=2)
+    
     # 初始化会话
     session_id = uuid.uuid4().hex
     profile = json.loads(content)
@@ -325,6 +383,7 @@ def structured_view(request: Request, role: str):
 
 @router.put("/structured/{role}")
 async def structured_save(role: str, request: Request):
+    """保存角色结构化数据到数据库"""
     # 接收表单或 JSON
     content_type = request.headers.get("content-type", "")
     raw_text = ""
@@ -339,17 +398,35 @@ async def structured_save(role: str, request: Request):
         parsed = json.loads(raw_text)
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"JSON 解析失败: {e}"}, status_code=400)
+    
     role = normalize_role_name(role)
     user = _require_user(request)
     uid = user.get('uid') if user else None
-    path = _structured_path_for_role(role, user_id=uid)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(parsed, f, ensure_ascii=False, indent=2)
-    # 同步至 DB
+    
+    if not uid:
+        return JSONResponse({"ok": False, "error": "未登录"}, status_code=401)
+    
+    # 获取角色ID
+    char_id = get_character_id(uid, role)
+    if not char_id:
+        return JSONResponse({"ok": False, "error": "角色不存在"}, status_code=404)
+    
     try:
-        if uid:
-            update_character_structured(int(uid), role, json.dumps(parsed, ensure_ascii=False))
-    except Exception:
-        pass
-    return JSONResponse({"ok": True})
+        # 保存到数据库
+        save_character_full_data(
+            user_id=uid,
+            name=role,
+            structured_data=parsed,
+            baike_content=None  # 不更新百科内容
+        )
+        
+        # 同时更新文件备份
+        path = _structured_path_for_role(role, user_id=uid)
+        if os.path.exists(os.path.dirname(path)):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(parsed, f, ensure_ascii=False, indent=2)
+        
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"保存失败: {e}"}, status_code=500)
 

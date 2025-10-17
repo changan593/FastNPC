@@ -15,7 +15,7 @@ from fastnpc.config import CHAR_DIR
 from fastnpc.utils.roles import normalize_role_name
 from fastnpc.pipeline.collect import collect as pipeline_collect
 from fastnpc.pipeline.structure import run as structure_run
-from fastnpc.api.auth import update_character_structured
+from fastnpc.api.auth import update_character_structured, save_character_full_data
 
 
 CHAR_DIR_STR = CHAR_DIR.as_posix()
@@ -106,23 +106,52 @@ def _collect_and_structure(task_id: str) -> None:
         )
         _set_task(task_id, progress=90, message="结构化完成，收尾中…", structured_path=structured_path)
 
-        # 移动文件到用户私有目录
+        # 移动文件到用户私有目录并保存到数据库
         try:
             if user_id:
                 user_dir = os.path.join(CHAR_DIR_STR, str(user_id))
                 os.makedirs(user_dir, exist_ok=True)
+                
+                # 读取百科全文
+                baike_content = None
                 if os.path.exists(raw_path):
-                    shutil.move(raw_path, os.path.join(user_dir, os.path.basename(raw_path)))
-                if os.path.exists(structured_path):
-                    new_spath = os.path.join(user_dir, os.path.basename(structured_path))
-                    shutil.move(structured_path, new_spath)
-                    # 同步到 DB
                     try:
-                        with open(new_spath, 'r', encoding='utf-8') as sf:
-                            prof = json.load(sf)
-                        update_character_structured(int(user_id), role, json.dumps(prof, ensure_ascii=False))
+                        with open(raw_path, 'r', encoding='utf-8') as rf:
+                            baike_content = rf.read()
+                        # 保留文件（作为备份）
+                        shutil.copy(raw_path, os.path.join(user_dir, os.path.basename(raw_path)))
                     except Exception:
                         pass
+                
+                # 读取结构化数据并保存到数据库
+                if os.path.exists(structured_path):
+                    new_spath = os.path.join(user_dir, os.path.basename(structured_path))
+                    # 保留文件（作为备份）
+                    shutil.copy(structured_path, new_spath)
+                    
+                    # 保存到数据库（新方式）
+                    try:
+                        with open(structured_path, 'r', encoding='utf-8') as sf:
+                            prof = json.load(sf)
+                        # 使用新的保存函数，将数据保存到所有相关表
+                        print(f"[INFO] 开始保存角色 {role} 到数据库...")
+                        save_character_full_data(
+                            user_id=int(user_id),
+                            name=role,
+                            structured_data=prof,
+                            baike_content=baike_content
+                        )
+                        print(f"[INFO] 角色 {role} 保存到数据库成功！")
+                    except Exception as e:
+                        import traceback
+                        print(f"[ERROR] 保存角色数据到数据库失败: {e}")
+                        print(f"[ERROR] 详细错误: {traceback.format_exc()}")
+                        # 降级到旧方式（确保基本功能可用）
+                        try:
+                            update_character_structured(int(user_id), role, json.dumps(prof, ensure_ascii=False))
+                            print(f"[INFO] 降级到旧方式保存成功")
+                        except Exception as e2:
+                            print(f"[ERROR] 旧方式也失败了: {e2}")
                 # 同步移动可选导出的 facts 与 bullets
                 try:
                     # 与 structure.run 的默认命名保持一致
