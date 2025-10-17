@@ -1058,9 +1058,9 @@ function App() {
                 
                 <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>6. 免责声明</h3>
                 <p style={{marginBottom: '8px'}}>• 本服务按"现状"提供，不保证无错误</p>
-                <p style={{marginBottom: '8px', fontWeight: 'bold', color: '#dc2626'}}>• 我们不对数据丢失、损坏、误删承担责任</p>
+                <p style={{marginBottom: '8px', fontWeight: 'bold', color: '#dc2626'}}>• 我们不对数据丢失、损坏、误删承担任何责任</p>
                 <p style={{marginBottom: '8px'}}>• 我们不对服务中断或 AI 内容准确性负责</p>
-                <p style={{marginBottom: '16px', background: '#fef3c7', padding: '8px', borderRadius: '4px', color: '#92400e'}}>💡 赔偿责任上限：100元</p>
+                <p style={{marginBottom: '16px', background: '#fef3c7', padding: '8px', borderRadius: '4px', color: '#92400e'}}>💡 本服务为免费服务，不承担任何赔偿责任</p>
                 
                 <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>7. 服务变更与终止</h3>
                 <p style={{marginBottom: '8px'}}>• 我们可能随时修改、暂停或终止服务</p>
