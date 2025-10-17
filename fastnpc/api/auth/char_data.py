@@ -399,7 +399,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
 
 
 def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, short_term: List[str] = None, long_term: List[str] = None) -> None:
-    """保存角色记忆到数据库
+    """保存角色记忆到数据库（并清除缓存）
     
     Args:
         character_id: 角色ID
@@ -407,6 +407,8 @@ def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, s
         long_term: 长期记忆列表
     """
     from fastnpc.api.auth.db_utils import _return_conn
+    from fastnpc.api.cache import get_redis_cache
+    
     conn = _get_conn()
     now = int(time.time())
     
@@ -436,6 +438,19 @@ def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, s
                 )
         
         conn.commit()
+        
+        # 清除角色配置缓存（因为包含记忆）
+        try:
+            cache = get_redis_cache()
+            # 获取角色名称和user_id来构建缓存key
+            cur.execute("SELECT name, user_id FROM characters WHERE id=%s", (character_id,))
+            row = cur.fetchone()
+            if row:
+                name, user_id = row[0], row[1]
+                cache.delete(f"char_profile:{user_id}:{name}")
+        except Exception as cache_error:
+            # 缓存清除失败不影响主逻辑
+            print(f"[WARN] 清除缓存失败: {cache_error}")
         
     except Exception as e:
         conn.rollback()

@@ -56,6 +56,12 @@ POSTGRES_PASSWORD: str | None = os.environ.get("POSTGRES_PASSWORD")
 DB_POOL_MIN_CONN: int = int(os.environ.get("DB_POOL_MIN_CONN", "5"))
 DB_POOL_MAX_CONN: int = int(os.environ.get("DB_POOL_MAX_CONN", "20"))
 
+# Redis 缓存配置
+REDIS_HOST: str = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT: int = int(os.environ.get("REDIS_PORT", "6379"))
+REDIS_DB: int = int(os.environ.get("REDIS_DB", "0"))
+REDIS_PASSWORD: str | None = os.environ.get("REDIS_PASSWORD")
+
 
 # 重要目录/文件路径
 CHAR_DIR: Path = BASE_DIR / "Characters"

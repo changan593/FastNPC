@@ -14,6 +14,10 @@ from passlib.hash import bcrypt
 
 from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
+from fastnpc.api.cache import get_redis_cache
+
+# 缓存键前缀
+CACHE_KEY_USER_SETTINGS = "user_settings"
 
 
 def get_user_id_by_username(username: str) -> Optional[int]:
@@ -29,6 +33,16 @@ def get_user_id_by_username(username: str) -> Optional[int]:
 
 
 def get_user_settings(user_id: int) -> Dict[str, Any]:
+    """获取用户设置（带Redis缓存）"""
+    cache = get_redis_cache()
+    cache_key = f"{CACHE_KEY_USER_SETTINGS}:{user_id}"
+    
+    # 尝试从缓存获取
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # 缓存未命中，查询数据库
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -38,7 +52,7 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
         )
         row = cur.fetchone()
         if not row:
-            return {
+            result = {
                 "default_model": None,
                 "ctx_max_chat": None,
                 "ctx_max_stm": None,
@@ -47,15 +61,21 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
                 "max_group_reply_rounds": 3,
                 "updated_at": 0,
             }
-        return {
-            "default_model": row[0],
-            "ctx_max_chat": (int(row[1]) if row[1] is not None else None),
-            "ctx_max_stm": (int(row[2]) if row[2] is not None else None),
-            "ctx_max_ltm": (int(row[3]) if row[3] is not None else None),
-            "profile": row[4],
-            "max_group_reply_rounds": (int(row[5]) if row[5] is not None else 3),
-            "updated_at": int(row[6]),
-        }
+        else:
+            result = {
+                "default_model": row[0],
+                "ctx_max_chat": (int(row[1]) if row[1] is not None else None),
+                "ctx_max_stm": (int(row[2]) if row[2] is not None else None),
+                "ctx_max_ltm": (int(row[3]) if row[3] is not None else None),
+                "profile": row[4],
+                "max_group_reply_rounds": (int(row[5]) if row[5] is not None else 3),
+                "updated_at": int(row[6]),
+            }
+        
+        # 保存到缓存（永久，直到更新时删除）
+        cache.set(cache_key, result)
+        
+        return result
     finally:
         _return_conn(conn)
 
@@ -70,6 +90,7 @@ def update_user_settings(
     profile: Optional[str] = None,
     max_group_reply_rounds: Optional[int] = None,
 ) -> None:
+    """更新用户设置（并清除缓存）"""
     now = int(time.time())
     conn = _get_conn()
     try:
@@ -86,6 +107,11 @@ def update_user_settings(
                 (user_id, default_model, ctx_max_chat, ctx_max_stm, ctx_max_ltm, profile, max_group_reply_rounds, now),
             )
         conn.commit()
+        
+        # 清除缓存（立即失效）
+        cache = get_redis_cache()
+        cache_key = f"{CACHE_KEY_USER_SETTINGS}:{user_id}"
+        cache.delete(cache_key)
     finally:
         _return_conn(conn)
 

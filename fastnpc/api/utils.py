@@ -19,16 +19,30 @@ from fastnpc.api.auth import (
 )
 from fastnpc.pipeline.structure import build_system_prompt
 from fastnpc.api.state import sessions, sessions_lock
+from fastnpc.api.cache import get_redis_cache
 
 
 CHAR_DIR_STR = CHAR_DIR.as_posix()
 
+# 缓存键前缀
+CACHE_KEY_CHARACTER_PROFILE = "char_profile"
+CACHE_KEY_CHARACTER_LIST = "char_list"
+
 
 def _load_character_profile(role: str, user_id: int) -> Optional[Dict[str, Any]]:
-    """从数据库加载角色profile，失败则尝试从文件加载（向后兼容）
+    """从数据库加载角色profile（带Redis缓存），失败则尝试从文件加载（向后兼容）
     
     返回格式与原来的 structured JSON 一致
     """
+    cache = get_redis_cache()
+    cache_key = f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{normalize_role_name(role)}"
+    
+    # 尝试从缓存获取
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # 缓存未命中，查询数据库
     try:
         # 1. 尝试从数据库加载
         character_id = get_character_id(user_id, normalize_role_name(role))
@@ -41,6 +55,10 @@ def _load_character_profile(role: str, user_id: int) -> Optional[Dict[str, Any]]
                 memories = load_character_memories(character_id)
                 profile['短期记忆'] = memories.get('short_term', [])
                 profile['长期记忆'] = memories.get('long_term', [])
+                
+                # 保存到缓存（5分钟TTL）
+                cache.set(cache_key, profile, ttl=300)
+                
                 return profile
     except Exception as e:
         print(f"[WARN] 从数据库加载角色失败: {e}")
@@ -50,7 +68,10 @@ def _load_character_profile(role: str, user_id: int) -> Optional[Dict[str, Any]]
         path = _structured_path_for_role(normalize_role_name(role), user_id=user_id)
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                profile = json.load(f)
+                # 文件加载的也缓存起来
+                cache.set(cache_key, profile, ttl=300)
+                return profile
     except Exception as e:
         print(f"[WARN] 从文件加载角色失败: {e}")
     
@@ -101,7 +122,17 @@ def _structured_path_for_role(role: str, user_id: Optional[int] = None) -> str:
 
 
 def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """从数据库列出用户的所有角色"""
+    """从数据库列出用户的所有角色（带Redis缓存）"""
+    cache = get_redis_cache()
+    cache_key = f"{CACHE_KEY_CHARACTER_LIST}:{user_id}"
+    
+    # 尝试从缓存获取
+    cached = cache.get(cache_key)
+    if cached is not None:
+        print(f"[DEBUG] _list_structured_files: 从缓存返回 {len(cached)} 个角色")
+        return cached
+    
+    # 缓存未命中，查询数据库
     items: List[Dict[str, Any]] = []
     conn = None
     try:
@@ -172,6 +203,10 @@ def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]
                 continue
         
         print(f"[DEBUG] Returning {len(items)} items")
+        
+        # 保存到缓存（1分钟TTL）
+        cache.set(cache_key, items, ttl=60)
+        
     except Exception as e:
         print(f"[ERROR] 从数据库列出角色失败: {e}")
         import traceback

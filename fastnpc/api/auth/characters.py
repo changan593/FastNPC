@@ -12,9 +12,16 @@ from typing import Optional, Tuple, Dict, Any
 
 from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
+from fastnpc.api.cache import get_redis_cache
+
+# 缓存键前缀
+CACHE_KEY_CHARACTER_ID = "char_id"
+CACHE_KEY_CHARACTER_PROFILE = "char_profile"
+CACHE_KEY_CHARACTER_LIST = "char_list"
 
 
 def get_or_create_character(user_id: int, name: str) -> int:
+    """获取或创建角色（并更新缓存）"""
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -29,14 +36,21 @@ def get_or_create_character(user_id: int, name: str) -> int:
                 "INSERT INTO characters(user_id, name, model, source, structured_json, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (user_id, name, '', '', '', now, now),
             )
-            return int(cur.fetchone()[0])
+            character_id = int(cur.fetchone()[0])
         else:
             cur.execute(
                 "INSERT INTO characters(user_id, name, model, source, structured_json, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s)",
                 (user_id, name, '', '', '', now, now),
             )
             conn.commit()
-            return int(cur.lastrowid)
+            character_id = int(cur.lastrowid)
+        
+        # 清除相关缓存（创建了新角色）
+        cache = get_redis_cache()
+        cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+        
+        return character_id
     finally:
         if not USE_POSTGRESQL:
             _return_conn(conn)
@@ -46,6 +60,16 @@ def get_or_create_character(user_id: int, name: str) -> int:
 
 
 def get_character_id(user_id: int, name: str) -> Optional[int]:
+    """获取角色ID（带Redis缓存）"""
+    cache = get_redis_cache()
+    cache_key = f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}"
+    
+    # 尝试从缓存获取
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    # 缓存未命中，查询数据库
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -53,13 +77,17 @@ def get_character_id(user_id: int, name: str) -> Optional[int]:
         row = cur.fetchone()
         if row:
             row_dict = _row_to_dict(row, cur)
-            return int(row_dict['id'])
+            character_id = int(row_dict['id'])
+            # 保存到缓存
+            cache.set(cache_key, character_id)
+            return character_id
         return None
     finally:
         _return_conn(conn)
 
 
 def rename_character(user_id: int, old_name: str, new_name: str) -> Tuple[bool, str]:
+    """重命名角色（并清除缓存）"""
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -77,12 +105,22 @@ def rename_character(user_id: int, old_name: str, new_name: str) -> Tuple[bool, 
             return False, '新名称已存在'
         cur.execute("UPDATE characters SET name=%s, updated_at=%s WHERE id=%s", (new_name, int(time.time()), cid))
         conn.commit()
+        
+        # 清除所有相关缓存（旧名和新名）
+        cache = get_redis_cache()
+        cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{old_name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{new_name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{old_name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{new_name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+        
         return True, 'ok'
     finally:
         _return_conn(conn)
 
 
 def delete_character(user_id: int, name: str) -> None:
+    """删除角色（并清除缓存）"""
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -94,6 +132,12 @@ def delete_character(user_id: int, name: str) -> None:
             cur.execute("DELETE FROM messages WHERE user_id=%s AND character_id=%s", (user_id, cid))
             cur.execute("DELETE FROM characters WHERE id=%s", (cid,))
             conn.commit()
+            
+            # 清除所有相关缓存
+            cache = get_redis_cache()
+            cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
+            cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
+            cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
     finally:
         _return_conn(conn)
 
@@ -113,6 +157,7 @@ def list_characters(user_id: int) -> list[Dict[str, Any]]:
 
 
 def update_character_structured(user_id: int, name: str, structured_json: str) -> None:
+    """更新角色结构化数据（并清除缓存）"""
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -126,6 +171,10 @@ def update_character_structured(user_id: int, name: str, structured_json: str) -
             cid = get_or_create_character(user_id, name)
         cur.execute("UPDATE characters SET structured_json=%s, updated_at=%s WHERE id=%s", (structured_json, int(time.time()), cid))
         conn.commit()
+        
+        # 清除角色配置缓存
+        cache = get_redis_cache()
+        cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
     finally:
         _return_conn(conn)
 
