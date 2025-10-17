@@ -1044,10 +1044,12 @@ function App() {
                 <p style={{marginBottom: '8px'}}>• 不要依赖 AI 内容做重要决策</p>
                 <p style={{marginBottom: '16px'}}>• 您对使用 AI 生成内容的后果负全部责任</p>
                 
-                <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>4. 知识产权</h3>
-                <p style={{marginBottom: '8px'}}>• 您保留对自己创建内容的所有权</p>
-                <p style={{marginBottom: '8px'}}>• 您授予我们使用、展示您内容的非独占许可</p>
-                <p style={{marginBottom: '16px'}}>• AI 生成的角色和内容，所有权归您</p>
+                <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>4. 知识产权与内容所有权</h3>
+                <p style={{fontWeight: 'bold', marginBottom: '12px', color: '#059669'}}>✅ 重要：您创建的所有角色和内容的版权归您所有</p>
+                <p style={{marginBottom: '8px'}}>• 您创建的 AI 角色、对话记录等，所有权完全归您</p>
+                <p style={{marginBottom: '8px'}}>• 我们有权删除违规内容，无需事先通知</p>
+                <p style={{marginBottom: '8px', color: '#dc2626'}}>⚠️ 我们不对数据丢失、误删承担责任</p>
+                <p style={{marginBottom: '16px'}}>• 建议您定期备份重要数据</p>
                 
                 <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>5. 隐私保护</h3>
                 <p style={{marginBottom: '8px'}}>• 我们收集必要的注册和使用数据</p>
@@ -1056,8 +1058,9 @@ function App() {
                 
                 <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>6. 免责声明</h3>
                 <p style={{marginBottom: '8px'}}>• 本服务按"现状"提供，不保证无错误</p>
-                <p style={{marginBottom: '8px'}}>• 我们不对服务中断或数据丢失负责</p>
-                <p style={{marginBottom: '16px'}}>• 我们不对 AI 内容的准确性负责</p>
+                <p style={{marginBottom: '8px', fontWeight: 'bold', color: '#dc2626'}}>• 我们不对数据丢失、损坏、误删承担责任</p>
+                <p style={{marginBottom: '8px'}}>• 我们不对服务中断或 AI 内容准确性负责</p>
+                <p style={{marginBottom: '16px', background: '#fef3c7', padding: '8px', borderRadius: '4px', color: '#92400e'}}>💡 赔偿责任上限：100元</p>
                 
                 <h3 style={{fontSize: '16px', fontWeight: 'bold', marginTop: '24px', marginBottom: '12px'}}>7. 服务变更与终止</h3>
                 <p style={{marginBottom: '8px'}}>• 我们可能随时修改、暂停或终止服务</p>
