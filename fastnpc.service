@@ -1,0 +1,38 @@
+[Unit]
+Description=FastNPC AI Character Service
+After=network.target postgresql.service
+
+[Service]
+Type=notify
+User=changan
+Group=changan
+WorkingDirectory=/home/changan/MyProject/FastNPC
+Environment="PATH=/home/changan/miniconda3/envs/FastNPC/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/home/changan/MyProject/FastNPC/.env
+
+# 使用Gunicorn启动（推荐）
+ExecStart=/home/changan/miniconda3/envs/FastNPC/bin/gunicorn fastnpc.api.server:app --config gunicorn_conf.py
+
+# 或者使用uvicorn多worker模式
+# ExecStart=/home/changan/miniconda3/envs/FastNPC/bin/uvicorn fastnpc.api.server:app --host 0.0.0.0 --port 8000 --workers 2
+
+# 重启策略
+Restart=on-failure
+RestartSec=10s
+
+# 资源限制（2G内存服务器）
+MemoryLimit=1.5G
+MemoryHigh=1.2G
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fastnpc
+
+[Install]
+WantedBy=multi-user.target
+
