@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Optional, Tuple, Dict, Any
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -39,10 +39,10 @@ def get_or_create_character(user_id: int, name: str) -> int:
             return int(cur.lastrowid)
     finally:
         if not USE_POSTGRESQL:
-            conn.close()
+            _return_conn(conn)
         else:
             conn.commit()
-            conn.close()
+            _return_conn(conn)
 
 
 def get_character_id(user_id: int, name: str) -> Optional[int]:
@@ -56,7 +56,7 @@ def get_character_id(user_id: int, name: str) -> Optional[int]:
             return int(row_dict['id'])
         return None
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def rename_character(user_id: int, old_name: str, new_name: str) -> Tuple[bool, str]:
@@ -79,7 +79,7 @@ def rename_character(user_id: int, old_name: str, new_name: str) -> Tuple[bool, 
         conn.commit()
         return True, 'ok'
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def delete_character(user_id: int, name: str) -> None:
@@ -95,7 +95,7 @@ def delete_character(user_id: int, name: str) -> None:
             cur.execute("DELETE FROM characters WHERE id=%s", (cid,))
             conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_characters(user_id: int) -> list[Dict[str, Any]]:
@@ -109,7 +109,7 @@ def list_characters(user_id: int) -> list[Dict[str, Any]]:
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def update_character_structured(user_id: int, name: str, structured_json: str) -> None:
@@ -127,7 +127,7 @@ def update_character_structured(user_id: int, name: str, structured_json: str) -
         cur.execute("UPDATE characters SET structured_json=%s, updated_at=%s WHERE id=%s", (structured_json, int(time.time()), cid))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def get_character_detail(user_id: int, character_id: int) -> Optional[Dict[str, Any]]:
@@ -141,5 +141,5 @@ def get_character_detail(user_id: int, character_id: int) -> Optional[Dict[str, 
         row = cur.fetchone()
         return _row_to_dict(row, cur) if row else None
     finally:
-        conn.close()
+        _return_conn(conn)
 

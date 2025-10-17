@@ -14,7 +14,7 @@ from typing import Optional, Tuple, Dict, Any
 from passlib.hash import bcrypt
 from itsdangerous import URLSafeSerializer, BadSignature
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import FASTNPC_SECRET, FASTNPC_ADMIN_USER, USE_POSTGRESQL
 
 
@@ -36,7 +36,7 @@ def create_user(username: str, password: str) -> Tuple[bool, str]:
     except (psycopg2.IntegrityError if USE_POSTGRESQL else Exception):
         return False, '用户名已存在'
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
@@ -53,7 +53,7 @@ def verify_user(username: str, password: str) -> Optional[Dict[str, Any]]:
             return None
         return {"id": row_dict['id'], "username": row_dict['username'], "is_admin": int(row_dict['is_admin'])}
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def issue_cookie(user_id: int, username: str) -> str:

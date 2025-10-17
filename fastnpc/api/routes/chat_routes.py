@@ -45,7 +45,12 @@ from fastnpc.chat.memory_manager import (
     integrate_to_long_term_memory,
     trim_long_term_memory_weighted,
 )
-from fastnpc.llm.openrouter import get_openrouter_completion, stream_openrouter_text
+from fastnpc.llm.openrouter import (
+    get_openrouter_completion, 
+    stream_openrouter_text,
+    get_openrouter_completion_async,
+    stream_openrouter_text_async
+)
 
 
 router = APIRouter()
@@ -249,24 +254,25 @@ async def api_post_message(role: str, request: Request):
     
     # 上下文导出已移除（完全依赖数据库）
     
-    # 调用 OpenRouter
+    # 调用 OpenRouter（异步，不阻塞Worker）
     prompt_msgs = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": content},
     ]
-    reply = get_openrouter_completion(prompt_msgs)
+    reply = await get_openrouter_completion_async(prompt_msgs)
     add_message(int(user['uid']), cid, 'assistant', reply)
     with sessions_lock:
         msgs.append({"role": "assistant", "content": reply})
     
-    # 检查并压缩三层记忆
+    # 检查并压缩三层记忆（后台任务，不阻塞响应）
+    # TODO: 可选优化 - 使用 BackgroundTasks 在后台执行
     _check_and_compress_memories(role, uid, cid, user_name, ctx_max_chat, ctx_max_stm, ctx_max_ltm)
     
     return {"reply": reply}
 
 
 @router.get("/api/chat/{role}/stream")
-def api_stream_message(role: str, content: str, request: Request, export_ctx: int = 0):
+async def api_stream_message(role: str, content: str, request: Request, export_ctx: int = 0):
     user = _require_user(request)
     if not user:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -282,7 +288,7 @@ def api_stream_message(role: str, content: str, request: Request, export_ctx: in
         msgs: List[Dict[str, str]] = sessions[sid]["messages"]  # type: ignore
         msgs.append({"role": "user", "content": content})
 
-    def gen():
+    async def gen():
         acc = ""
         try:
             # 获取用户记忆预算
@@ -372,12 +378,12 @@ def api_stream_message(role: str, content: str, request: Request, export_ctx: in
                 _is_admin = 0
             # 上下文导出已移除（完全依赖数据库）
 
-            # 调用 OpenRouter 流式
+            # 调用 OpenRouter 流式（异步，不阻塞Worker）
             prompt_msgs = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": content},
             ]
-            for text in stream_openrouter_text(prompt_msgs):
+            async for text in stream_openrouter_text_async(prompt_msgs):
                 if not isinstance(text, str):
                     continue
                 yield f"data: {text}\n\n"
@@ -456,7 +462,7 @@ async def chat(request: Request, role: str = Form(...), session_id: str = Form(.
             return HTMLResponse("<div class=\"text-red-600\">会话不存在</div>")
         messages: List[Dict[str, str]] = sess["messages"]  # type: ignore
         messages.append({"role": "user", "content": prompt})
-    reply = get_openrouter_completion(messages)
+    reply = await get_openrouter_completion_async(messages)
     with sessions_lock:
         messages.append({"role": "assistant", "content": reply})
     # 返回一条聊天气泡，追加到日志

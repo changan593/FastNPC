@@ -29,7 +29,11 @@ from fastnpc.api.auth import (
 from fastnpc.api.utils import _require_user, _load_character_profile
 from fastnpc.chat.prompt_builder import build_chat_system_prompt, _remove_timestamp_suffix
 from fastnpc.chat.group_moderator import judge_next_speaker
-from fastnpc.llm.openrouter import get_openrouter_completion
+from fastnpc.llm.openrouter import (
+    get_openrouter_completion,
+    get_openrouter_completion_async,
+    stream_openrouter_text_async
+)
 
 router = APIRouter()
 
@@ -593,13 +597,12 @@ async def api_generate_group_reply(group_id: int, request: Request):
         pattern = rf'^{re.escape(char_name)}(\d{{12}})?[:：]\s*'
         return re.sub(pattern, '', text).strip()
     
-    # 流式生成器
+    # 流式生成器（异步，不阻塞Worker）
     async def gen():
-        from fastnpc.llm.openrouter import stream_openrouter_text
         full_reply = ""
         
         try:
-            for chunk in stream_openrouter_text(prompt_msgs):
+            async for chunk in stream_openrouter_text_async(prompt_msgs):
                 full_reply += chunk
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             

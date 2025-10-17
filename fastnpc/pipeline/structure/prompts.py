@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from fastnpc.llm.openrouter import get_openrouter_completion
+from fastnpc.llm.openrouter import get_openrouter_completion, get_openrouter_completion_async
 from .processors import parse_json_from_text
 
 
@@ -102,9 +102,10 @@ def _category_prompts(persona_name: str) -> Dict[str, str]:
 
 
 def _call_category_llm(category_name: str, prompt: str, facts_markdown: str) -> Dict[str, Any]:
+    """同步版本（向后兼容）"""
     sys_msg = (
         "你是严谨的中文信息抽取助手。\n"
-        "任务：仅基于用户给出的‘完整事实列表’文本，生成严格 JSON，键为中文且与提示字段完全一致。\n"
+        "任务：仅基于用户给出的'完整事实列表'文本，生成严格 JSON，键为中文且与提示字段完全一致。\n"
         "若完整角色信息中无相关信息，则依据材料合理推测。"
     )
     # 截断：限制上下文长度，避免过长导致拒答或截断（2 万字符）
@@ -118,6 +119,35 @@ def _call_category_llm(category_name: str, prompt: str, facts_markdown: str) -> 
     )
     try:
         resp = get_openrouter_completion([
+            {"role": "system", "content": sys_msg},
+            {"role": "user", "content": user_msg},
+        ])
+        js = parse_json_from_text(str(resp or "")) or {}
+        if isinstance(js, dict):
+            return js
+        return {}
+    except Exception:
+        return {}
+
+
+async def _call_category_llm_async(category_name: str, prompt: str, facts_markdown: str) -> Dict[str, Any]:
+    """异步版本（并行生成，不阻塞Worker）"""
+    sys_msg = (
+        "你是严谨的中文信息抽取助手。\n"
+        "任务：仅基于用户给出的'完整事实列表'文本，生成严格 JSON，键为中文且与提示字段完全一致。\n"
+        "若完整角色信息中无相关信息，则依据材料合理推测。"
+    )
+    # 截断：限制上下文长度，避免过长导致拒答或截断（2 万字符）
+    try:
+        if isinstance(facts_markdown, str) and len(facts_markdown) > 20000:
+            facts_markdown = facts_markdown[:20000]
+    except Exception:
+        pass
+    user_msg = (
+        prompt + "\n\n完整角色信息如下（Markdown）：\n" + facts_markdown
+    )
+    try:
+        resp = await get_openrouter_completion_async([
             {"role": "system", "content": sys_msg},
             {"role": "user", "content": user_msg},
         ])

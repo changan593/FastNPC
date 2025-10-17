@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import List
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -46,7 +46,7 @@ def add_message(user_id: int, character_id: int, role: str, content: str, system
             conn.commit()
             return int(cur.lastrowid)
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_messages(user_id: int, character_id: int, limit: int = 100, after_id: int = 0, only_uncompressed: bool = False):
@@ -92,7 +92,7 @@ def list_messages(user_id: int, character_id: int, limit: int = 100, after_id: i
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def mark_messages_as_compressed(user_id: int, character_id: int, message_ids: List[int]) -> None:
@@ -115,7 +115,7 @@ def mark_messages_as_compressed(user_id: int, character_id: int, message_ids: Li
         cur.execute(sql, (user_id, character_id, *message_ids))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def mark_group_messages_as_compressed(group_id: int, message_ids: List[int]) -> None:
@@ -138,7 +138,7 @@ def mark_group_messages_as_compressed(group_id: int, message_ids: List[int]) -> 
         )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def update_message_system_prompt(message_id: int, system_prompt: str) -> None:
@@ -157,5 +157,5 @@ def update_message_system_prompt(message_id: int, system_prompt: str) -> None:
         )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 

@@ -29,10 +29,12 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
     """
     # 如果没有传入_get_conn和USE_POSTGRESQL，从auth导入（向后兼容）
     if _get_conn is None or USE_POSTGRESQL is None:
-        from fastnpc.api.auth.db_utils import _get_conn as default_get_conn
+        from fastnpc.api.auth.db_utils import _get_conn as default_get_conn, _return_conn
         from fastnpc.config import USE_POSTGRESQL as default_use_pg
         _get_conn = default_get_conn
         USE_POSTGRESQL = default_use_pg
+    else:
+        from fastnpc.api.auth.db_utils import _return_conn
     
     from fastnpc.api.auth.db_utils import _row_to_dict
     
@@ -228,7 +230,7 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
         conn.rollback()
         raise e
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, character_id: int) -> Optional[Dict[str, Any]]:
@@ -240,6 +242,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
     Returns:
         完整的角色数据字典，如果角色不存在则返回 None
     """
+    from fastnpc.api.auth.db_utils import _return_conn
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -392,7 +395,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
         return result
         
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, short_term: List[str] = None, long_term: List[str] = None) -> None:
@@ -403,6 +406,7 @@ def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, s
         short_term: 短期记忆列表
         long_term: 长期记忆列表
     """
+    from fastnpc.api.auth.db_utils import _return_conn
     conn = _get_conn()
     now = int(time.time())
     
@@ -437,7 +441,7 @@ def save_character_memories_impl(_get_conn, USE_POSTGRESQL, character_id: int, s
         conn.rollback()
         raise e
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def load_character_memories_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, character_id: int) -> Dict[str, List[str]]:
@@ -449,6 +453,7 @@ def load_character_memories_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, charac
     Returns:
         包含 'short_term' 和 'long_term' 键的字典
     """
+    from fastnpc.api.auth.db_utils import _return_conn
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -475,5 +480,5 @@ def load_character_memories_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, charac
         }
         
     finally:
-        conn.close()
+        _return_conn(conn)
 

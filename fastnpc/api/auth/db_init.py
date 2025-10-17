@@ -6,7 +6,7 @@
 包含数据库迁移逻辑（添加新字段）。
 """
 
-from fastnpc.api.auth.db_utils import _get_conn, _column_exists
+from fastnpc.api.auth.db_utils import _get_conn, _column_exists, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -724,5 +724,5 @@ def init_db():
     except Exception as e:
         print(f"[WARN] 添加字段失败: {e}")
     conn.commit()
-    conn.close()
+    _return_conn(conn)
 

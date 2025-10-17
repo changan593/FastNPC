@@ -12,7 +12,7 @@ from typing import Optional, Tuple, Dict, Any
 
 from passlib.hash import bcrypt
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -25,7 +25,7 @@ def get_user_id_by_username(username: str) -> Optional[int]:
         row = cur.fetchone()
         return row[0] if row else None
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def get_user_settings(user_id: int) -> Dict[str, Any]:
@@ -57,7 +57,7 @@ def get_user_settings(user_id: int) -> Dict[str, Any]:
             "updated_at": int(row[6]),
         }
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def update_user_settings(
@@ -87,7 +87,7 @@ def update_user_settings(
             )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def change_password(user_id: int, old_password: str, new_password: str) -> Tuple[bool, str]:
@@ -105,7 +105,7 @@ def change_password(user_id: int, old_password: str, new_password: str) -> Tuple
         conn.commit()
         return True, 'ok'
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_users() -> list[Dict[str, Any]]:
@@ -119,7 +119,7 @@ def list_users() -> list[Dict[str, Any]]:
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
@@ -130,7 +130,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         row = cur.fetchone()
         return _row_to_dict(row, cur) if row else None
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def delete_account(user_id: int) -> None:
@@ -151,5 +151,5 @@ def delete_account(user_id: int) -> None:
         cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 

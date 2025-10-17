@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Optional, Dict, Any
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -36,7 +36,7 @@ def create_group_chat(user_id: int, name: str) -> int:
             conn.commit()
             return int(cur.lastrowid)
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_group_chats(user_id: int) -> list[Dict[str, Any]]:
@@ -66,7 +66,7 @@ def list_group_chats(user_id: int) -> list[Dict[str, Any]]:
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def add_group_member(group_id: int, member_type: str, member_name: str, member_id: int = None) -> None:
@@ -87,7 +87,7 @@ def add_group_member(group_id: int, member_type: str, member_name: str, member_i
             )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_group_members(group_id: int) -> list[Dict[str, Any]]:
@@ -105,7 +105,7 @@ def list_group_members(group_id: int) -> list[Dict[str, Any]]:
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def add_group_message(
@@ -144,7 +144,7 @@ def add_group_message(
             conn.commit()
             return msg_id
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def update_group_message_moderator_info(message_id: int, moderator_prompt: str, moderator_response: str) -> None:
@@ -158,7 +158,7 @@ def update_group_message_moderator_info(message_id: int, moderator_prompt: str, 
         )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_group_messages(group_id: int, limit: int = 200, only_uncompressed: bool = False) -> list[Dict[str, Any]]:
@@ -188,7 +188,7 @@ def list_group_messages(group_id: int, limit: int = 200, only_uncompressed: bool
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def delete_group_chat(user_id: int, group_id: int) -> None:
@@ -205,7 +205,7 @@ def delete_group_chat(user_id: int, group_id: int) -> None:
         cur.execute("DELETE FROM group_chats WHERE id=%s", (group_id,))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def get_group_chat_detail(group_id: int, user_id: int) -> Optional[Dict[str, Any]]:
@@ -221,7 +221,7 @@ def get_group_chat_detail(group_id: int, user_id: int) -> Optional[Dict[str, Any
         result['members'] = list_group_members(group_id)
         return result
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def remove_group_member(group_id: int, member_name: str) -> None:
@@ -232,5 +232,5 @@ def remove_group_member(group_id: int, member_name: str) -> None:
         cur.execute("DELETE FROM group_members WHERE group_id=%s AND member_name=%s", (group_id, member_name))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 

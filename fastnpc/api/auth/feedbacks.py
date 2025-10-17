@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Optional, Dict, Any
 
-from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict
+from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
 
 
@@ -36,7 +36,7 @@ def create_feedback(user_id: int, title: str, content: str, attachments: str = N
             conn.commit()
             return int(cur.lastrowid)
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def list_feedbacks(user_id: int = None, status: str = None) -> list[Dict[str, Any]]:
@@ -75,7 +75,7 @@ def list_feedbacks(user_id: int = None, status: str = None) -> list[Dict[str, An
         else:
             return [dict(r) for r in rows]
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def get_feedback_detail(feedback_id: int) -> Optional[Dict[str, Any]]:
@@ -96,7 +96,7 @@ def get_feedback_detail(feedback_id: int) -> Optional[Dict[str, Any]]:
         row = cur.fetchone()
         return _row_to_dict(row, cur) if row else None
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def update_feedback_status(feedback_id: int, status: str, admin_reply: str = None) -> None:
@@ -117,7 +117,7 @@ def update_feedback_status(feedback_id: int, status: str, admin_reply: str = Non
             )
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 def delete_feedback(feedback_id: int) -> None:
@@ -128,5 +128,5 @@ def delete_feedback(feedback_id: int) -> None:
         cur.execute("DELETE FROM feedbacks WHERE id=%s", (feedback_id,))
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
 
