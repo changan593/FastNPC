@@ -2212,6 +2212,11 @@ function App() {
                 </div>
               </details>
             )}
+            {creating && !progress && (
+              <div style={{marginTop: 12, padding: '10px 12px', background: '#f3f4f6', borderRadius: 6, color: '#6b7280', fontSize: 14}}>
+                ⏱️ 预计创建时间约 2 分钟，请耐心等待...
+              </div>
+            )}
             {progress && (
               <div className="progress">
                 <div>
@@ -2232,7 +2237,7 @@ function App() {
               {createDone ? (
                 <button className="primary" onClick={()=>{ setShowCreate(false); setProgress(null); setCreateDone(false); setNewRole(''); }}>完成</button>
               ) : (
-                <button onClick={createRole} className="primary" disabled={creating}>创建</button>
+                <button onClick={createRole} className="primary" disabled={creating}>{creating ? '创建中...' : '创建'}</button>
               )}
             </div>
           </div>
@@ -2317,9 +2322,8 @@ function App() {
         <div className="modal" style={{alignItems:'center', justifyContent:'center'}}>
           <div className="dialog" style={{width: '80vw', maxWidth: '1200px', height: '70vh', display:'flex', flexDirection:'column'}}>
             <h3>选择同名词条</h3>
-            <div style={{display:'flex', gap:8, alignItems:'center'}}>
-              <input value={newRole} onChange={e=>setNewRole(e.target.value)} placeholder="关键词" />
-              <button onClick={async()=>{ setPolyLoading(true); try{ const endpoint = (newSource==='zhwiki')?'/api/zhwiki/polysemant':'/api/baike/polysemant'; const limit=(newSource==='zhwiki')?80:200; const { data } = await api.get(endpoint, { params: { keyword: newRole.trim(), limit } }); const items=(data.items||[]).map((it:any)=>({ text: it.text||it.title||'', href: it.href||'', snippet: (it.snippet||'').replace(/<[^>]+>/g,'') })); setPolyOptions(items); setPolyRoute(data?.route||'') } catch(e:any){ alert(e?.response?.data?.error||'获取候选失败') } finally { setPolyLoading(false) } }}>刷新</button>
+            <div style={{display:'flex', gap:8, alignItems:'center', padding: '8px 0'}}>
+              <span style={{fontSize: 16, fontWeight: 500}}>🎭 {newRole}</span>
               <span className="muted">{polyLoading? '加载中…' : `共 ${polyOptions.length} 项`}</span>
               {polyRoute ? (
                 <span className="muted" style={{marginLeft:8}}>来源: {polyRoute}</span>
@@ -2354,7 +2358,7 @@ function App() {
             </div>
             <div className="actions">
               <button onClick={()=>{ setShowPoly(false); setPolyLoading(false); setProgress(null); }}>取消</button>
-              <button className="primary" onClick={()=>{ setShowPoly(false); createRole(); }}>完成</button>
+              <button className="primary" onClick={()=>{ setShowPoly(false); createRole(); }} disabled={polyChoiceIdx === null}>选择</button>
             </div>
           </div>
         </div>
