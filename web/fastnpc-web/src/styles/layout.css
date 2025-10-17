@@ -1,0 +1,209 @@
+/* ========================================
+   布局系统 - Layout & Sidebar
+   ======================================== */
+
+/* ===== 全局样式 ===== */
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ===== 主布局 ===== */
+/* 左侧约 1/4，右侧约 3/4；同时限定最小/最大宽度，保证美观 */
+.layout {
+  display: grid;
+  grid-template-columns: clamp(240px, 25%, 380px) minmax(0, 1fr) auto;
+  gap: var(--spacing-lg);
+  height: 100%;
+  padding: 10px var(--spacing-lg);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.layout > * {
+  box-sizing: border-box;
+}
+
+/* ===== 侧边栏 ===== */
+.sidebar {
+  position: relative;
+  border-right: 1px solid var(--border);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-head .app-logo {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-black);
+  background: var(--gradient-purple-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: -0.5px;
+  font-family: 'Arial Black', 'Impact', sans-serif;
+}
+
+.sidebar-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.sidebar .add {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--spacing-sm);
+  cursor: pointer;
+}
+
+/* ===== 角色列表 ===== */
+.role-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.role-list li {
+  padding: 10px var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.role-list li .row {
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.role-list li .ops {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.role-list li.active {
+  background: var(--bg-active);
+}
+
+.role-list .name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.role-list .time {
+  font-size: var(--font-size-sm);
+  color: var(--muted);
+}
+
+/* ===== 搜索框 ===== */
+.search {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.search input {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.search select {
+  padding: var(--spacing-sm) var(--spacing-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* ===== FAB 悬浮按钮容器 ===== */
+.sidebar .fab-container {
+  position: absolute;
+  left: var(--spacing-md);
+  bottom: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.sidebar .fab-container .fab-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-400);
+  padding-left: var(--spacing-xs);
+  user-select: none;
+}
+
+.sidebar .fab-container .fab-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.sidebar .fab-container .fab {
+  padding: 10px var(--spacing-lg);
+  border-radius: var(--radius-xl);
+  background: var(--gradient-primary);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-primary);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.sidebar .fab-container .fab:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-primary-hover);
+}
+
+/* ===== 反馈按钮（侧边栏版本）===== */
+.feedback-btn-sidebar {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--gradient-purple);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  box-shadow: var(--shadow-purple);
+  transition: all var(--transition-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.feedback-btn-sidebar:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-purple-hover);
+}
+
+.feedback-btn-sidebar:active {
+  transform: translateY(0);
+}
+

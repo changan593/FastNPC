@@ -1,0 +1,412 @@
+/* ========================================
+   管理员界面 - Admin Panel
+   ======================================== */
+
+/* ===== 管理员页面布局 ===== */
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  gap: var(--spacing-lg);
+}
+
+/* ===== 标签页 ===== */
+.admin-tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.admin-tabs button {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.admin-tabs button:hover:not(:disabled) {
+  background: var(--color-gray-100);
+}
+
+.admin-tabs button.active {
+  background: var(--color-primary-500);
+  color: #fff;
+  border-color: var(--color-primary-500);
+}
+
+.admin-tabs button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 操作区域 ===== */
+.admin-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.admin-search {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  min-width: 200px;
+}
+
+/* ===== 内容区域 ===== */
+.admin-content {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-xl);
+}
+
+.admin-content-header {
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-content-header h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  color: var(--text-primary);
+}
+
+/* ===== 表格样式 ===== */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-table thead {
+  background: var(--color-gray-100);
+}
+
+.admin-table th {
+  padding: var(--spacing-md) var(--spacing-lg);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-table td {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+
+.admin-table tbody tr:hover {
+  background: var(--bg);
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ===== 按钮样式 ===== */
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary-500);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  text-decoration: underline;
+  padding: 0;
+  transition: color var(--transition-base);
+}
+
+.btn-link:hover {
+  color: var(--color-primary-600);
+}
+
+/* ===== 徽章 ===== */
+.badge {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  background: var(--color-primary-100);
+  color: var(--color-primary-800);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ===== 详情页面 ===== */
+.admin-detail-page {
+  background: #fff;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-detail-header h3 {
+  margin: 0;
+  font-size: var(--font-size-3xl);
+  color: var(--text-primary);
+}
+
+.admin-detail-section {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.admin-detail-section h4 {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+}
+
+/* ===== JSON 查看器 ===== */
+.json-view {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-code);
+  color: var(--border);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  max-height: 400px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* ===== 管理员消息列表 ===== */
+.admin-msgs {
+  max-height: 500px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.admin-msgs .msg {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.admin-msgs .msg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.admin-msgs .msg-role {
+  font-weight: var(--font-weight-semibold);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.admin-msgs .bubble {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+/* ===== 管理员查看群聊消息的样式 ===== */
+.admin-group-msg {
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+  padding: var(--spacing-md);
+  background: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: all var(--transition-base);
+}
+
+.admin-group-msg:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-gray-300);
+}
+
+.admin-group-msg.user-msg {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-100);
+}
+
+.admin-group-msg.character-msg {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+}
+
+.admin-group-msg.moderator-msg {
+  background: var(--color-warning-50);
+  border-color: var(--color-warning-100);
+}
+
+.admin-group-msg .msg-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.admin-group-msg.user-msg .msg-avatar {
+  background: var(--gradient-pink);
+}
+
+.admin-group-msg.character-msg .msg-avatar {
+  background: var(--gradient-purple);
+}
+
+.admin-group-msg.moderator-msg .msg-avatar {
+  background: linear-gradient(135deg, var(--color-warning-500) 0%, var(--color-warning-600) 100%);
+}
+
+.admin-group-msg .msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-group-msg .msg-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.admin-group-msg .msg-sender {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+}
+
+.admin-group-msg .msg-badge {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.admin-group-msg.user-msg .msg-badge {
+  background: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.admin-group-msg.character-msg .msg-badge {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.admin-group-msg.moderator-msg .msg-badge {
+  background: var(--color-warning-50);
+  color: var(--color-warning-900);
+}
+
+.admin-group-msg .msg-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-400);
+  margin-left: auto;
+}
+
+.admin-group-msg .msg-text {
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-wrap: break-word;
+}
+
+/* ===== 成员列表 ===== */
+.member-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--spacing-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.member-item:hover {
+  background: var(--color-gray-100);
+  border-color: var(--color-gray-300);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.member-item .member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.member-item .member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-item .member-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  margin-bottom: 0;
+}
+
+.member-item .badge {
+  margin-left: var(--spacing-sm);
+}
+
+/* ===== 桌面端隐藏移动端元素 ===== */
+.mobile-menu-btn,
+.mobile-overlay,
+.admin-card-list {
+  display: none;
+}
+

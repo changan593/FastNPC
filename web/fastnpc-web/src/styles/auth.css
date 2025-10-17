@@ -1,0 +1,162 @@
+/* ========================================
+   认证系统 - Authentication
+   ======================================== */
+
+/* ===== 认证页面容器 ===== */
+.auth-wrap {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===== 背景装饰文字 ===== */
+.auth-background-text {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  font-size: clamp(100px, 18vw, 280px);
+  font-weight: var(--font-weight-extra-black);
+  color: transparent;
+  background: linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  user-select: none;
+  pointer-events: none;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+  z-index: 0;
+  font-family: 'Arial Black', 'Impact', sans-serif;
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.05),
+    4px 4px 8px rgba(0, 0, 0, 0.03);
+  filter: drop-shadow(0 4px 16px rgba(99, 102, 241, 0.1));
+}
+
+/* ===== 认证卡片 ===== */
+.auth-card {
+  width: 360px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-2xl);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card h2 {
+  margin: 0 0 var(--spacing-lg);
+  font-size: var(--font-size-3xl);
+  color: var(--color-gray-800);
+  font-weight: var(--font-weight-bold);
+}
+
+.auth-card label {
+  display: block;
+  margin: var(--spacing-md) 0;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
+}
+
+.auth-card input {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  font-size: var(--font-size-base);
+}
+
+.auth-card input:focus {
+  outline: none;
+  border-color: var(--color-purple-700);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.auth-card .actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+  margin-top: var(--spacing-lg);
+}
+
+.auth-card .primary {
+  background: var(--color-purple-700);
+  color: #fff;
+  border: none;
+  padding: 10px var(--spacing-xl);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-base), transform 0.1s;
+  font-size: var(--font-size-base);
+}
+
+.auth-card .primary:hover {
+  background: var(--color-purple-800);
+  transform: translateY(-1px);
+}
+
+.auth-card .primary:active {
+  transform: translateY(0);
+}
+
+.auth-card button:not(.primary) {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 10px var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color var(--transition-base);
+  font-size: var(--font-size-base);
+}
+
+.auth-card button:not(.primary):hover {
+  color: var(--text-secondary);
+}
+
+/* ===== 用户协议勾选框 ===== */
+.terms-agreement {
+  margin: var(--spacing-lg) 0;
+  padding: var(--spacing-md);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.terms-agreement label {
+  margin: 0;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-base);
+}
+
+.terms-agreement input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.terms-agreement a {
+  color: var(--color-primary-500);
+  text-decoration: none;
+  transition: color var(--transition-base);
+}
+
+.terms-agreement a:hover {
+  text-decoration: underline;
+  color: var(--color-primary-600);
+}
+

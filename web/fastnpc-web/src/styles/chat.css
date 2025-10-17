@@ -1,0 +1,292 @@
+/* ========================================
+   聊天系统 - Chat & Messages
+   ======================================== */
+
+/* ===== 聊天主容器 ===== */
+.chat {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+
+.chat-head .title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.chat-head .settings {
+  text-decoration: none;
+  border: 1px solid var(--border);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  transition: all var(--transition-base);
+}
+
+.chat-head .settings.active {
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.chat-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-lg);
+  min-height: 0;
+}
+
+.chat-input {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--border);
+  background: #fff;
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: var(--color-primary-700);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
+.chat-input button {
+  padding: 10px var(--spacing-lg);
+  border: none;
+  background: var(--color-primary-700);
+  color: #fff;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base);
+  font-weight: var(--font-weight-medium);
+}
+
+.chat-input button:hover {
+  background: var(--color-primary-800);
+}
+
+/* ===== 单聊消息 ===== */
+.msg {
+  display: flex;
+  margin: var(--spacing-sm) 0;
+}
+
+.msg.user {
+  justify-content: flex-end;
+}
+
+.msg .bubble {
+  max-width: 70%;
+  padding: var(--spacing-sm) 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.msg.user .bubble {
+  background: var(--color-primary-700);
+  color: #fff;
+  border-color: var(--color-primary-700);
+}
+
+.msg-header {
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-secondary);
+}
+
+.msg-content {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg);
+  border-radius: var(--radius-md);
+}
+
+/* ===== 群聊消息（带头像和气泡）===== */
+.group-msg-item {
+  display: flex;
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+  align-items: flex-start;
+}
+
+.group-msg-item.user {
+  flex-direction: row-reverse;
+}
+
+.group-msg-item .avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+}
+
+.group-msg-item.user .avatar {
+  background: var(--gradient-pink);
+}
+
+.group-msg-item .msg-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.group-msg-item.user .msg-right {
+  align-items: flex-end;
+}
+
+.group-msg-item .sender-name {
+  font-size: var(--font-size-sm);
+  color: var(--muted);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: 2px;
+}
+
+.group-msg-item .bubble {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  max-width: 70%;
+  width: fit-content;
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm);
+  word-wrap: break-word;
+}
+
+.group-msg-item.user .bubble {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-100);
+}
+
+.group-msg-item .view-btn {
+  font-size: var(--font-size-xs);
+  padding: 3px var(--spacing-sm);
+  background: var(--color-primary-500);
+  color: white;
+  border: none;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: var(--spacing-xs);
+  transition: background var(--transition-base);
+}
+
+.group-msg-item .view-btn:hover {
+  background: var(--color-primary-600);
+}
+
+/* ===== 群聊信息面板 ===== */
+.group-info-panel {
+  width: 280px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.group-info-panel .info-header {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.group-info-panel .info-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.group-info-panel .info-header .manage-btn {
+  font-size: 13px;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-primary-500);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.group-info-panel .info-header .manage-btn:hover {
+  background: var(--color-primary-600);
+}
+
+.group-info-panel .info-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+}
+
+.member-brief {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+}
+
+.member-brief:last-child {
+  border-bottom: none;
+}
+
+.member-name {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-base);
+}
+
+.member-intro {
+  font-size: var(--font-size-sm);
+  color: var(--muted);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ===== 状态栏 ===== */
+.status-bar {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background-color: var(--color-gray-100);
+  font-size: var(--font-size-base);
+  color: var(--muted);
+  min-height: 30px;
+  border-top: 1px solid var(--border);
+}
+
