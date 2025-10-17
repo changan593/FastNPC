@@ -44,6 +44,14 @@ except Exception:
 _frontend_origins = os.environ.get("FASTNPC_FRONTEND_ORIGIN", "http://localhost:5173").strip()
 FRONTEND_ORIGINS: List[str] = [o.strip() for o in _frontend_origins.split(",") if o.strip()]
 
+# PostgreSQL 配置
+USE_POSTGRESQL: bool = os.environ.get("USE_POSTGRESQL", "true").lower() in ("true", "1", "yes")
+POSTGRES_HOST: str = os.environ.get("POSTGRES_HOST", "localhost")
+POSTGRES_PORT: int = int(os.environ.get("POSTGRES_PORT", "5432"))
+POSTGRES_DB: str = os.environ.get("POSTGRES_DB", "fastnpc")
+POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "fastnpc")
+POSTGRES_PASSWORD: str | None = os.environ.get("POSTGRES_PASSWORD")
+
 
 # 重要目录/文件路径
 CHAR_DIR: Path = BASE_DIR / "Characters"
