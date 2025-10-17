@@ -64,11 +64,15 @@ def _set_task(task_id: str, **fields: Any) -> None:
 
 
 def _collect_and_structure(task_id: str) -> None:
+    print(f"[INFO] ======== 后台任务开始执行: task_id={task_id} ========")
     t = tasks.get(task_id)
     if not t:
+        print(f"[ERROR] 任务 {task_id} 不存在于tasks字典中！")
         return
     try:
+        print(f"[INFO] 更新任务状态为 running, progress=5")
         _set_task(task_id, status="running", progress=5, message="准备开始…")
+        print(f"[INFO] 任务状态已更新，当前进度: {tasks.get(task_id).progress if tasks.get(task_id) else 'N/A'}")
 
         role = t.role.strip()
         source = t.source
@@ -84,9 +88,13 @@ def _collect_and_structure(task_id: str) -> None:
         export_md = bool(getattr(t, 'export_md', False))
 
         # 1) 数据抓取
+        print(f"[INFO] 开始数据抓取阶段...")
         _set_task(task_id, progress=10, message=f"正在从 {source} 抓取数据…")
         role = normalize_role_name(role)
+        print(f"[INFO] 角色名规范化: {role}")
+        print(f"[INFO] 调用 pipeline_collect...")
         raw_data, raw_path = pipeline_collect(role, source, choice_index=choice_index, filter_text=filter_text, chosen_href=chosen_href)
+        print(f"[INFO] 数据抓取完成，raw_path={raw_path}")
         _set_task(task_id, progress=40, message="数据抓取完成，开始结构化…", raw_path=raw_path)
 
         # 2) 结构化（异步并行生成，5-8倍速度提升）
@@ -154,6 +162,16 @@ def _collect_and_structure(task_id: str) -> None:
                             baike_content=baike_content
                         )
                         print(f"[INFO] 角色 {role} 保存到数据库成功！")
+                        
+                        # 清除角色列表缓存，确保前端能立即看到新角色
+                        try:
+                            from fastnpc.api.cache import get_redis_cache
+                            cache = get_redis_cache()
+                            cache_key = f"char_list:{user_id}"
+                            cache.delete(cache_key)
+                            print(f"[INFO] 已清除角色列表缓存: {cache_key}")
+                        except Exception as cache_err:
+                            print(f"[WARNING] 清除缓存失败（不影响功能）: {cache_err}")
                         
                         # 清理临时文件
                         for temp_file in temp_files_to_cleanup:

@@ -201,7 +201,7 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             )
         
         # 10. 保存来源信息
-        source_info = structured_data.get('来源信息', {})
+        source_info = structured_data.get('来源', {})
         if source_info:
             # 获取现有的 source_info_size（如果 baike_content 为 None，保留原值）
             if baike_content is not None:
@@ -386,7 +386,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
         source_row = cur.fetchone()
         if source_row:
             source_data = _row_to_dict(source_row, cur)
-            result['来源信息'] = {
+            result['来源'] = {
                 "唯一标识": source_data.get('unique_id'),
                 "链接": source_data.get('source_url'),
                 "来源信息量": source_data.get('source_info_size'),

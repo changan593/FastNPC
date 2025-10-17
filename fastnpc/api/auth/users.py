@@ -160,22 +160,38 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
 
 
 def delete_account(user_id: int) -> None:
+    """删除用户账户
+    
+    由于数据库配置了外键约束 ON DELETE CASCADE，
+    删除用户时会自动级联删除：
+    - 用户的所有角色 (characters)
+    - 用户的所有消息 (messages)
+    - 用户的设置 (user_settings)
+    - 用户的群聊 (group_chats)
+    - 群聊的成员和消息 (group_members, group_messages)
+    - 用户的反馈 (feedbacks)
+    - 角色的所有详细信息（9个相关表）
+    """
+    from fastnpc.api.cache import get_redis_cache
+    
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        # 删除该用户的所有消息
-        cur.execute("SELECT id FROM characters WHERE user_id=%s", (user_id,))
-        char_ids = [int(r[0]) for r in cur.fetchall()]
-        if char_ids:
-            for cid in char_ids:
-                cur.execute("DELETE FROM messages WHERE user_id=%s AND character_id=%s", (user_id, cid))
-        # 删除角色
-        cur.execute("DELETE FROM characters WHERE user_id=%s", (user_id,))
-        # 删除用户设置
-        cur.execute("DELETE FROM user_settings WHERE user_id=%s", (user_id,))
-        # 删除用户
+        
+        # 清除用户相关的所有缓存
+        try:
+            cache = get_redis_cache()
+            cache.delete(f"user_settings:{user_id}")
+            cache.delete(f"char_list:{user_id}")
+            # 注意：单个角色的缓存会随着角色删除自动失效（TTL 5分钟）
+        except Exception as cache_err:
+            print(f"[WARNING] 清除缓存失败（不影响删除）: {cache_err}")
+        
+        # 一条SQL搞定！数据库会自动级联删除所有相关数据
         cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
         conn.commit()
+        
+        print(f"[INFO] 用户 {user_id} 及其所有相关数据已删除")
     finally:
         _return_conn(conn)
 

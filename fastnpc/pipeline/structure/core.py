@@ -101,7 +101,7 @@ def run(
     prompts = _category_prompts(persona_name)
     results: Dict[str, Any] = {}
     
-    # 并发生成八大类，受 MAX_CONCURRENCY 限制
+    # 并发生成九大类，受 MAX_CONCURRENCY 限制
     max_workers = max(1, int(MAX_CONCURRENCY or 4))
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -126,43 +126,32 @@ def run(
         base["人物简介"] = brief
         results["基础身份信息"] = base
 
-    # 来源信息（唯一标识 + 链接）
+    # 补充来源信息的元数据（如果LLM没有生成或信息不全）
     try:
-        # 角色名（保留用户输入形态：来自文件名去前缀）
-        base_name = os.path.basename(input_path)
-        name_wo_ext = os.path.splitext(base_name)[0]
-        if name_wo_ext.startswith('baike_'):
-            role_input = name_wo_ext[len('baike_'):]
-        elif name_wo_ext.startswith('zhwiki_'):
-            role_input = name_wo_ext[len('zhwiki_'):]
-        else:
-            role_input = name_wo_ext
-        # 用户ID（若位于 Characters/<uid>/ 路径）
-        uid = None
-        try:
-            parts = os.path.normpath(input_path).split(os.sep)
-            if 'Characters' in parts:
-                idx = parts.index('Characters')
-                if idx + 1 < len(parts):
-                    _maybe = parts[idx + 1]
-                    if _maybe.isdigit():
-                        uid = _maybe
-        except Exception:
-            uid = None
-        # 消歧选择信息：优先使用抓取后的 page title；否则 keyword
-        chosen_label = ''
+        if "来源" not in results or not isinstance(results.get("来源"), dict):
+            results["来源"] = {}
+        
+        source_info = results["来源"]
+        
+        # 提取实际的数据源信息
         page_link = ''
         if isinstance(data, dict):
-            chosen_label = str(data.get('title') or data.get('keyword') or '').strip()
             page_link = str(data.get('url') or data.get('source') or '').strip()
-        # 唯一标识：用户/<角色名>_<选择信息>（无 uid 时省略前缀）
-        unique_id = f"{role_input}_{chosen_label}" if chosen_label else role_input
-        if uid:
-            unique_id = f"{uid}/{unique_id}"
-        results["来源信息"] = {
-            "唯一标识": unique_id,
-            "链接": page_link,
-        }
+        
+        # 只在缺失时补充链接
+        if not source_info.get('链接') and page_link:
+            source_info['链接'] = page_link
+        
+        # 补充来源信息量（原始数据大小）
+        if not source_info.get('来源信息量'):
+            try:
+                if isinstance(source_text, str):
+                    char_count = len(source_text)
+                    source_info['来源信息量'] = f"约{char_count}字"
+            except Exception:
+                pass
+        
+        results["来源"] = source_info
     except Exception:
         pass
 
@@ -203,7 +192,7 @@ async def run_async(
     markdown_output_path: Optional[str] = None,
 ) -> str:
     """
-    异步主流程：从原始数据生成结构化角色画像（并行生成8个类别）
+    异步主流程：从原始数据生成结构化角色画像（并行生成9个类别）
     
     性能提升：从串行20-60秒 → 并行3-8秒（5-8倍）
     """
@@ -257,7 +246,7 @@ async def run_async(
 
     prompts = _category_prompts(persona_name)
     
-    # 异步并行生成八大类（🚀 关键优化：同时调用8个LLM）
+    # 异步并行生成九大类（🚀 关键优化：同时调用9个LLM）
     tasks = []
     categories = []
     for cat, ptxt in prompts.items():
@@ -292,36 +281,40 @@ async def run_async(
         base["人物简介"] = brief
         results["基础身份信息"] = base
 
-    # 来源信息（与同步版本相同）
+    # 补充来源信息的元数据（如果LLM没有生成或信息不全）
     try:
-        base_name = os.path.basename(input_path)
-        name_wo_ext = os.path.splitext(base_name)[0]
-        if name_wo_ext.startswith('baike_'):
-            role_input = name_wo_ext[len('baike_'):]
-        elif name_wo_ext.startswith('zhwiki_'):
-            role_input = name_wo_ext[len('zhwiki_'):]
-        else:
-            role_input = name_wo_ext
-        uid = None
-        try:
-            parts = os.path.normpath(input_path).split(os.sep)
-            if 'Characters' in parts:
-                idx = parts.index('Characters')
-                if idx + 1 < len(parts):
-                    _maybe = parts[idx + 1]
-                    if _maybe.isdigit():
-                        uid = _maybe
-        except Exception:
-            pass
-        results['_metadata'] = {
-            'role': role_input,
-            'user_id': uid,
-            'source_file': os.path.basename(input_path)
-        }
+        if "来源" not in results or not isinstance(results.get("来源"), dict):
+            results["来源"] = {}
+        
+        source_info = results["来源"]
+        
+        # 提取实际的数据源信息
+        page_link = ''
+        if isinstance(data, dict):
+            page_link = str(data.get('url') or data.get('source') or '').strip()
+        
+        # 只在缺失时补充链接
+        if not source_info.get('链接') and page_link:
+            source_info['链接'] = page_link
+        
+        # 补充来源信息量（原始数据大小）
+        if not source_info.get('来源信息量'):
+            try:
+                if isinstance(source_text, str):
+                    char_count = len(source_text)
+                    source_info['来源信息量'] = f"约{char_count}字"
+            except Exception:
+                pass
+        
+        results["来源"] = source_info
     except Exception:
         pass
 
     structured = results
+    
+    # 预留记忆字段（三层记忆系统）
+    structured["短期记忆"] = []
+    structured["长期记忆"] = []
 
     # 输出路径
     if not output_path:

@@ -83,8 +83,15 @@ async def api_create_character(background_tasks: BackgroundTasks, request: Reque
                       choice_index=choice_index, filter_text=filter_text, chosen_href=chosen_href,
                       export_facts=export_facts, export_bullets=export_bullets,
                       export_summary=export_summary, export_md=export_md)
+    # 立即设置初始进度（避免前端轮询时看到0%）
+    state.status = "pending"
+    state.progress = 1
+    state.message = "任务已创建，等待执行..."
+    
     with tasks_lock:
         tasks[task_id] = state
+    
+    print(f"[INFO] 创建角色任务: task_id={task_id}, role={role}, user_id={user.get('uid')}")
     background_tasks.add_task(_collect_and_structure, task_id)
     return {"task_id": task_id}
 
@@ -162,6 +169,16 @@ async def api_copy_character(name: str, request: Request):
             structured_data=structured_data,
             baike_content=baike_content
         )
+        
+        # 清除角色列表缓存，确保前端立即看到新角色
+        try:
+            from fastnpc.api.cache import get_redis_cache
+            cache = get_redis_cache()
+            cache.delete(f"char_list:{uid}")
+            print(f"[INFO] 复制角色后清除缓存: char_list:{uid}")
+        except Exception as cache_err:
+            print(f"[WARNING] 清除缓存失败（不影响功能）: {cache_err}")
+            
     except Exception as e:
         return JSONResponse({"error": f"复制失败: {e}"}, status_code=500)
     

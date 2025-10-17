@@ -39,7 +39,8 @@ def init_db():
                 baike_content TEXT,
                 created_at BIGINT NOT NULL,
                 updated_at BIGINT NOT NULL,
-                UNIQUE(user_id, name)
+                UNIQUE(user_id, name),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -51,7 +52,9 @@ def init_db():
                 character_id INT NOT NULL,
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
-                created_at BIGINT NOT NULL
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
             )
             """
         )
@@ -80,7 +83,8 @@ def init_db():
                 baike_content TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
-                UNIQUE(user_id, name)
+                UNIQUE(user_id, name),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -92,7 +96,9 @@ def init_db():
                 character_id INTEGER NOT NULL,
                 role TEXT NOT NULL,
                 content TEXT NOT NULL,
-                created_at INTEGER NOT NULL
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
             )
             """
         )
@@ -143,7 +149,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_settings(
                 user_id INT PRIMARY KEY,
                 default_model TEXT,
-                updated_at BIGINT NOT NULL
+                updated_at BIGINT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -153,7 +160,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_settings(
                 user_id INTEGER PRIMARY KEY,
                 default_model TEXT,
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -218,7 +226,8 @@ def init_db():
                 user_id INT NOT NULL,
                 name TEXT NOT NULL,
                 created_at BIGINT NOT NULL,
-                updated_at BIGINT NOT NULL
+                updated_at BIGINT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -233,7 +242,8 @@ def init_db():
                 member_id INT,
                 member_name TEXT NOT NULL,
                 joined_at BIGINT NOT NULL,
-                UNIQUE(group_id, member_type, member_name)
+                UNIQUE(group_id, member_type, member_name),
+                FOREIGN KEY (group_id) REFERENCES group_chats(id) ON DELETE CASCADE
             )
             """
         )
@@ -251,7 +261,8 @@ def init_db():
                 created_at BIGINT NOT NULL,
                 system_prompt_snapshot TEXT,
                 moderator_prompt TEXT,
-                moderator_response TEXT
+                moderator_response TEXT,
+                FOREIGN KEY (group_id) REFERENCES group_chats(id) ON DELETE CASCADE
             )
             """
         )
@@ -269,7 +280,7 @@ def init_db():
                 admin_reply TEXT,
                 created_at BIGINT NOT NULL,
                 updated_at BIGINT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -467,7 +478,8 @@ def init_db():
                 user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
@@ -482,7 +494,8 @@ def init_db():
                 member_id INTEGER,
                 member_name TEXT NOT NULL,
                 joined_at INTEGER NOT NULL,
-                UNIQUE(group_id, member_type, member_name)
+                UNIQUE(group_id, member_type, member_name),
+                FOREIGN KEY (group_id) REFERENCES group_chats(id) ON DELETE CASCADE
             )
             """
         )
@@ -500,7 +513,8 @@ def init_db():
                 created_at INTEGER NOT NULL,
                 system_prompt_snapshot TEXT,
                 moderator_prompt TEXT,
-                moderator_response TEXT
+                moderator_response TEXT,
+                FOREIGN KEY (group_id) REFERENCES group_chats(id) ON DELETE CASCADE
             )
             """
         )
@@ -518,7 +532,7 @@ def init_db():
                 admin_reply TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
