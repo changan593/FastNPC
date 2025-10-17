@@ -101,86 +101,110 @@ def _structured_path_for_role(role: str, user_id: Optional[int] = None) -> str:
 
 
 def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """列出用户的所有结构化角色文件"""
+    """从数据库列出用户的所有角色"""
     items: List[Dict[str, Any]] = []
+    conn = None
     try:
-        base = CHAR_DIR_STR if not user_id else os.path.join(CHAR_DIR_STR, str(user_id))
-        os.makedirs(base, exist_ok=True)
-        for name in os.listdir(base):
-            if not name.startswith("structured_") or not name.endswith(".json"):
-                continue
-            path = os.path.join(base, name)
+        from fastnpc.api.auth import _get_conn, _row_to_dict
+        from fastnpc.config import USE_POSTGRESQL
+        
+        print(f"[DEBUG] _list_structured_files: user_id={user_id}, USE_POSTGRESQL={USE_POSTGRESQL}")
+        
+        conn = _get_conn()
+        cur = conn.cursor()
+        
+        # 构建查询（兼容PostgreSQL和SQLite）
+        placeholder = "%s" if USE_POSTGRESQL else "?"
+        if user_id:
+            query = f"SELECT id, name, updated_at FROM characters WHERE user_id = {placeholder} ORDER BY updated_at DESC"
+            print(f"[DEBUG] Executing query: {query} with user_id={user_id}")
+            cur.execute(query, (user_id,))
+        else:
+            query = "SELECT id, name, updated_at FROM characters ORDER BY updated_at DESC"
+            print(f"[DEBUG] Executing query: {query}")
+            cur.execute(query)
+        
+        rows = cur.fetchall()
+        # 保存列名，因为后续查询会改变cursor.description
+        column_names = [desc[0] for desc in cur.description]
+        print(f"[DEBUG] Found {len(rows)} characters, columns: {column_names}")
+        
+        for row in rows:
             try:
-                stat = os.stat(path)
-                # role 名推断
-                role = name[len("structured_"):-5]
-                for prefix in ("baike_", "zhwiki_"):
-                    if role.startswith(prefix):
-                        role = role[len(prefix):]
-                # 读取简介预览（尽量短，优先结构化中的简介/摘要/summary）
+                # 手动转换tuple到dict
+                if USE_POSTGRESQL:
+                    row_dict = dict(zip(column_names, row))
+                else:
+                    row_dict = dict(row)
+                    
+                char_id = row_dict['id']
+                role = row_dict['name']
+                # 确保updated_at是整数
+                updated_at = int(row_dict['updated_at']) if row_dict.get('updated_at') else 0
+                
+                print(f"[DEBUG] Processing character: {role} (id={char_id}, updated_at={updated_at})")
+                
+                # 获取简介预览
                 preview = ""
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        prof = json.load(f)
-                    # 优先结构化字段
-                    cand_keys = [
-                        ("基础身份信息", ["人物简介", "简介", "人物摘要", "摘要", "自我描述", "简介概述"]),
-                        ("角色信息", ["简介", "摘要"]),
-                    ]
-                    for top, subkeys in cand_keys:
-                        v = prof.get(top) if isinstance(prof, dict) else None
-                        if isinstance(v, dict):
-                            for sk in subkeys:
-                                txt = v.get(sk)
-                                if isinstance(txt, str) and txt.strip():
-                                    preview = txt.strip()
-                                    break
-                        if preview:
-                            break
-                    if not preview and isinstance(prof, dict):
-                        # 兼容原始数据保留的 summary
-                        s = prof.get("summary")
-                        if isinstance(s, str) and s.strip():
-                            preview = s.strip()
-                    # 再次兜底：遍历顶层字符串字段
-                    if not preview and isinstance(prof, dict):
-                        for k, v in prof.items():
-                            if isinstance(v, str) and v.strip():
-                                preview = v.strip()
-                                break
-                    # 规范长度
-                    if preview:
-                        preview = preview.replace("\n", " ")
-                        if len(preview) > 140:
-                            preview = preview[:140] + "…"
-                except Exception:
-                    preview = ""
+                    cur.execute(f"SELECT brief_intro FROM character_basic_info WHERE character_id = {placeholder}", (char_id,))
+                    basic_row = cur.fetchone()
+                    if basic_row:
+                        # 直接访问第一个元素（brief_intro）
+                        brief = basic_row[0] if basic_row else None
+                        if brief and isinstance(brief, str):
+                            preview = brief.strip().replace("\n", " ")
+                            if len(preview) > 140:
+                                preview = preview[:140] + "…"
+                except Exception as e:
+                    print(f"[DEBUG] Failed to get preview for {role}: {e}")
+                
                 items.append({
                     "role": role,
-                    "path": path,
-                    "updated_at": int(stat.st_mtime),
+                    "path": f"db://characters/{char_id}",
+                    "updated_at": updated_at,
                     "preview": preview,
                 })
-            except Exception:
+            except Exception as e:
+                print(f"[ERROR] 处理角色数据失败: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
-    except Exception:
-        pass
-    items.sort(key=lambda x: x.get("updated_at", 0), reverse=True)
+        
+        print(f"[DEBUG] Returning {len(items)} items")
+    except Exception as e:
+        print(f"[ERROR] 从数据库列出角色失败: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+    
     return items
 
 
 def _update_long_term_memory(role: str, uid: int, mem_context_text: str) -> Optional[str]:
-    """将 Mem0 检索得到的上下文写入结构化文件的 "知识与能力.长期记忆"，并返回最新的 system 提示。"""
+    """将 Mem0 检索得到的上下文写入数据库的 "知识与能力.长期记忆"，并返回最新的 system 提示。"""
     try:
         role = normalize_role_name(role)
-        path = _structured_path_for_role(role, user_id=uid)
-        if not os.path.exists(path):
+        
+        # 从数据库获取角色ID和数据
+        character_id = get_character_id(uid, role)
+        if not character_id:
             return None
-        with open(path, "r", encoding="utf-8") as f:
-            prof = json.load(f)
+        
+        # 从数据库加载完整数据
+        prof = load_character_full_data(character_id)
+        if not prof:
+            return None
+        
         know = prof.get("知识与能力")
         if not isinstance(know, dict):
             know = {}
+        
         # 读取既有长期记忆
         existing = know.get("长期记忆")
         existing_list: List[str]
@@ -198,6 +222,7 @@ def _update_long_term_memory(role: str, uid: int, mem_context_text: str) -> Opti
                 existing_list.append(line)
         else:
             existing_list = []
+        
         # 新增项
         new_items: List[str] = []
         for line in str(mem_context_text or "").splitlines():
@@ -207,6 +232,7 @@ def _update_long_term_memory(role: str, uid: int, mem_context_text: str) -> Opti
             if line.startswith("- "):
                 line = line[2:].strip()
             new_items.append(line)
+        
         # 合并去重（保持顺序，限制长度）
         merged: List[str] = []
         for x in [*existing_list, *new_items]:
@@ -214,17 +240,24 @@ def _update_long_term_memory(role: str, uid: int, mem_context_text: str) -> Opti
                 merged.append(x)
         if len(merged) > 400:
             merged = merged[-400:]
+        
+        # 更新数据
         know["长期记忆"] = merged
         prof["知识与能力"] = know
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(prof, f, ensure_ascii=False, indent=2)
-        try:
-            update_character_structured(int(uid), role, json.dumps(prof, ensure_ascii=False))
-        except Exception:
-            pass
+        
+        # 保存到数据库（移除内部元数据）
+        structured_data = {k: v for k, v in prof.items() if k not in ['_metadata', 'baike_content']}
+        save_character_full_data(
+            user_id=uid,
+            name=role,
+            structured_data=structured_data,
+            baike_content=None  # 不更新百科内容
+        )
+        
         # 返回最新 system 提示
         return build_system_prompt(prof)
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR] 更新长期记忆失败: {e}")
         return None
 
 
@@ -346,33 +379,21 @@ def _ensure_chat_session_for_role(role: str, user_id: Optional[int] = None) -> s
 # ============= 记忆管理函数 =============
 
 def _read_memories_from_profile(role: str, user_id: int) -> Tuple[List[str], List[str]]:
-    """从结构化文件读取短期记忆和长期记忆
+    """从数据库读取短期记忆和长期记忆
     
     Returns:
         (short_term_memories, long_term_memories)
     """
     try:
         role = normalize_role_name(role)
-        path = _structured_path_for_role(role, user_id=user_id)
-        if not os.path.exists(path):
+        character_id = get_character_id(user_id, role)
+        if not character_id:
             return [], []
         
-        with open(path, 'r', encoding='utf-8') as f:
-            prof = json.load(f)
-        
-        # 读取短期记忆
-        stm = prof.get("短期记忆", [])
-        if isinstance(stm, list):
-            short_memories = [str(x).strip() for x in stm if str(x).strip()]
-        else:
-            short_memories = []
-        
-        # 读取长期记忆
-        ltm = prof.get("长期记忆", [])
-        if isinstance(ltm, list):
-            long_memories = [str(x).strip() for x in ltm if str(x).strip()]
-        else:
-            long_memories = []
+        # 从数据库加载记忆
+        memories = load_character_memories(character_id)
+        short_memories = memories.get('short_term', [])
+        long_memories = memories.get('long_term', [])
         
         return short_memories, long_memories
     except Exception as e:
@@ -386,49 +407,25 @@ def _write_memories_to_profile(
     short_memories: Optional[List[str]] = None,
     long_memories: Optional[List[str]] = None
 ) -> None:
-    """写入记忆到结构化文件顶层的"短期记忆"和"长期记忆"字段
-    
-    使用文件锁避免并发问题
+    """写入记忆到数据库
     """
     try:
         role = normalize_role_name(role)
-        path = _structured_path_for_role(role, user_id=user_id)
-        if not os.path.exists(path):
-            print(f"[ERROR] 结构化文件不存在: {path}")
+        character_id = get_character_id(user_id, role)
+        if not character_id:
+            print(f"[ERROR] 角色不存在: {role}")
             return
         
-        # 使用文件锁
-        with open(path, 'r+', encoding='utf-8') as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # 排他锁
-            try:
-                prof = json.load(f)
-                
-                # 确保记忆字段存在（兼容旧文件）
-                if "短期记忆" not in prof:
-                    prof["短期记忆"] = []
-                if "长期记忆" not in prof:
-                    prof["长期记忆"] = []
-                
-                # 更新短期记忆
-                if short_memories is not None:
-                    prof["短期记忆"] = short_memories
-                
-                # 更新长期记忆
-                if long_memories is not None:
-                    prof["长期记忆"] = long_memories
-                
-                # 写回文件
-                f.seek(0)
-                f.truncate()
-                json.dump(prof, f, ensure_ascii=False, indent=2)
-                
-                # 同步到数据库
-                try:
-                    update_character_structured(user_id, role, json.dumps(prof, ensure_ascii=False))
-                except Exception:
-                    pass
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # 释放锁
+        # 如果只更新部分记忆，需要先读取现有记忆
+        if short_memories is None or long_memories is None:
+            current_memories = load_character_memories(character_id)
+            if short_memories is None:
+                short_memories = current_memories.get('short_term', [])
+            if long_memories is None:
+                long_memories = current_memories.get('long_term', [])
+        
+        # 保存到数据库
+        save_character_memories(character_id, short_memories, long_memories)
     except Exception as e:
         print(f"[ERROR] 写入记忆失败: {e}")
 

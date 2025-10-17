@@ -22,10 +22,11 @@ from fastnpc.api.auth import (
     get_group_chat_detail,
     remove_group_member,
     get_user_settings,
+    get_user_id_by_username,
     _get_conn,
     update_group_message_moderator_info,
 )
-from fastnpc.api.utils import _require_user, _structured_path_for_role
+from fastnpc.api.utils import _require_user, _load_character_profile
 from fastnpc.chat.prompt_builder import build_chat_system_prompt, _remove_timestamp_suffix
 from fastnpc.chat.group_moderator import judge_next_speaker
 from fastnpc.llm.openrouter import get_openrouter_completion
@@ -46,31 +47,43 @@ def _judge_next_speaker_after_message(group_id: int, message_id: int, uid: int) 
         
         # 获取成员简介
         member_profiles = []
-        user_settings = get_user_settings(uid)
-        user_profile = user_settings.get('profile') or "普通用户"
         
         for member in members:
             if member['member_type'] == 'user':
+                # 根据成员用户名查询其用户ID和简介
+                member_user_id = get_user_id_by_username(member['member_name'])
+                if member_user_id:
+                    member_user_settings = get_user_settings(member_user_id)
+                    member_user_profile = member_user_settings.get('profile') or "普通用户"
+                else:
+                    member_user_profile = "普通用户"
+                
                 member_profiles.append({
                     "name": member['member_name'],
                     "type": "user",
-                    "profile": user_profile
+                    "profile": member_user_profile
                 })
             else:
-                # 读取角色简介
+                # 从数据库读取角色简介
                 try:
-                    path = _structured_path_for_role(member['member_name'], user_id=uid)
-                    with open(path, 'r', encoding='utf-8') as f:
-                        structured = json.load(f)
-                    base = structured.get('基础身份信息', {})
-                    personality = structured.get('个性与行为设定', {})
-                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
-                    member_profiles.append({
-                        "name": _remove_timestamp_suffix(member['member_name']),
-                        "type": "character",
-                        "profile": brief[:200]
-                    })
-                except Exception:
+                    structured = _load_character_profile(member['member_name'], uid)
+                    if structured:
+                        base = structured.get('基础身份信息', {})
+                        personality = structured.get('个性与行为设定', {})
+                        brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                        member_profiles.append({
+                            "name": _remove_timestamp_suffix(member['member_name']),
+                            "type": "character",
+                            "profile": brief[:200]
+                        })
+                    else:
+                        member_profiles.append({
+                            "name": _remove_timestamp_suffix(member['member_name']),
+                            "type": "character",
+                            "profile": "角色"
+                        })
+                except Exception as e:
+                    print(f"[ERROR] 加载角色简介失败: {e}")
                     member_profiles.append({
                         "name": _remove_timestamp_suffix(member['member_name']),
                         "type": "character",
@@ -402,33 +415,45 @@ async def api_judge_next_speaker(group_id: int, request: Request):
     
     # 获取成员简介
     member_profiles = []
-    user_settings = get_user_settings(uid)
-    user_profile = user_settings.get('profile') or "普通用户"
     
     from fastnpc.chat.prompt_builder import _remove_timestamp_suffix
     
     for member in members:
         if member['member_type'] == 'user':
+            # 根据成员用户名查询其用户ID和简介
+            member_user_id = get_user_id_by_username(member['member_name'])
+            if member_user_id:
+                member_user_settings = get_user_settings(member_user_id)
+                member_user_profile = member_user_settings.get('profile') or "普通用户"
+            else:
+                member_user_profile = "普通用户"
+            
             member_profiles.append({
                 "name": member['member_name'],  # 用户名不需要去后缀
                 "type": "user",
-                "profile": user_profile
+                "profile": member_user_profile
             })
         else:
-            # 读取角色简介
+            # 从数据库读取角色简介
             try:
-                path = _structured_path_for_role(member['member_name'], user_id=uid)
-                with open(path, 'r', encoding='utf-8') as f:
-                    structured = json.load(f)
-                base = structured.get('基础身份信息', {})
-                personality = structured.get('个性与行为设定', {})
-                brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
-                member_profiles.append({
-                    "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
-                    "type": "character",
-                    "profile": brief[:200]
-                })
-            except Exception:
+                structured = _load_character_profile(member['member_name'], uid)
+                if structured:
+                    base = structured.get('基础身份信息', {})
+                    personality = structured.get('个性与行为设定', {})
+                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                    member_profiles.append({
+                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "type": "character",
+                        "profile": brief[:200]
+                    })
+                else:
+                    member_profiles.append({
+                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "type": "character",
+                        "profile": "角色"
+                    })
+            except Exception as e:
+                print(f"[ERROR] 加载角色简介失败: {e}")
                 member_profiles.append({
                     "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
                     "type": "character",
@@ -485,12 +510,13 @@ async def api_generate_group_reply(group_id: int, request: Request):
     if not character_name:
         return JSONResponse({"error": f"群聊中未找到角色: {character_name_input}"}, status_code=404)
     
-    # 读取角色结构化信息
+    # 从数据库读取角色结构化信息
     try:
-        path = _structured_path_for_role(character_name, user_id=uid)
-        with open(path, 'r', encoding='utf-8') as f:
-            structured_profile = json.load(f)
-    except Exception:
+        structured_profile = _load_character_profile(character_name, uid)
+        if not structured_profile:
+            return JSONResponse({"error": "角色不存在"}, status_code=404)
+    except Exception as e:
+        print(f"[ERROR] 加载角色信息失败: {e}")
         return JSONResponse({"error": "角色不存在"}, status_code=404)
     
     # 读取角色的短期/长期记忆
@@ -510,17 +536,22 @@ async def api_generate_group_reply(group_id: int, request: Request):
             continue  # 用户在交谈对象中单独处理
         
         try:
-            path = _structured_path_for_role(member['member_name'], user_id=uid)
-            with open(path, 'r', encoding='utf-8') as f:
-                prof = json.load(f)
-            base = prof.get('基础身份信息', {})
-            personality = prof.get('个性与行为设定', {})
-            brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
-            other_characters.append({
-                "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
-                "brief": brief[:200]
-            })
-        except Exception:
+            prof = _load_character_profile(member['member_name'], uid)
+            if prof:
+                base = prof.get('基础身份信息', {})
+                personality = prof.get('个性与行为设定', {})
+                brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                other_characters.append({
+                    "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                    "brief": brief[:200]
+                })
+            else:
+                other_characters.append({
+                    "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                    "brief": "无简介"
+                })
+        except Exception as e:
+            print(f"[ERROR] 加载其他角色信息失败: {e}")
             other_characters.append({
                 "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
                 "brief": "无简介"
@@ -746,32 +777,43 @@ def api_get_member_briefs(group_id: int, request: Request):
     members = list_group_members(group_id)
     briefs = []
     
-    user_settings = get_user_settings(uid)
-    user_profile = user_settings.get('profile') or "普通用户"
-    
     from fastnpc.chat.prompt_builder import _remove_timestamp_suffix
     
     for member in members:
         if member['member_type'] == 'user':
+            # 根据成员用户名查询其用户ID和简介
+            member_user_id = get_user_id_by_username(member['member_name'])
+            if member_user_id:
+                member_user_settings = get_user_settings(member_user_id)
+                member_user_profile = member_user_settings.get('profile') or "普通用户"
+            else:
+                member_user_profile = "普通用户"
+            
             briefs.append({
                 "name": member['member_name'],  # 用户名不需要去后缀
                 "type": "user",
-                "brief": user_profile[:100]
+                "brief": member_user_profile[:100]
             })
         else:
             try:
-                path = _structured_path_for_role(member['member_name'], user_id=uid)
-                with open(path, 'r', encoding='utf-8') as f:
-                    prof = json.load(f)
-                base = prof.get('基础身份信息', {})
-                personality = prof.get('个性与行为设定', {})
-                brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
-                briefs.append({
-                    "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
-                    "type": "character",
-                    "brief": brief[:100]
-                })
-            except Exception:
+                prof = _load_character_profile(member['member_name'], uid)
+                if prof:
+                    base = prof.get('基础身份信息', {})
+                    personality = prof.get('个性与行为设定', {})
+                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                    briefs.append({
+                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "type": "character",
+                        "brief": brief[:100]
+                    })
+                else:
+                    briefs.append({
+                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "type": "character",
+                        "brief": "角色"
+                    })
+            except Exception as e:
+                print(f"[ERROR] 加载角色简介失败: {e}")
                 briefs.append({
                     "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
                     "type": "character",

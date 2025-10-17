@@ -247,28 +247,7 @@ async def api_post_message(role: str, request: Request):
     # 保存实际发送给LLM的system prompt到user消息
     update_message_system_prompt(user_msg_id, system_prompt)
     
-    # 若管理员要求导出上下文
-    if export_ctx and _is_admin == 1:
-        try:
-            base = os.path.join(CHAR_DIR_STR, str(uid))
-            os.makedirs(base, exist_ok=True)
-            ts = time.strftime('%Y%m%d%H%M%S', time.localtime())
-            fname = f"ctx_{role}_{ts}.json"
-            ctx_obj = {
-                "meta": {"role": role, "ts": ts},
-                "sources": {
-                    "system_prompt": system_prompt,
-                    "structured_profile": structured_profile,
-                    "short_term_memories": short_term_memories,
-                    "long_term_memories": long_term_memories,
-                    "chat_history_for_model": msgs_for_model,
-                    "user_input": content,
-                }
-            }
-            with open(os.path.join(base, fname), 'w', encoding='utf-8') as f:
-                json.dump(ctx_obj, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+    # 上下文导出已移除（完全依赖数据库）
     
     # 调用 OpenRouter
     prompt_msgs = [
@@ -391,27 +370,7 @@ def api_stream_message(role: str, content: str, request: Request, export_ctx: in
                 _is_admin = int(_udb.get('is_admin', 0)) if _udb else 0
             except Exception:
                 _is_admin = 0
-            if export_ctx and _is_admin == 1:
-                try:
-                    base = os.path.join(CHAR_DIR_STR, str(uid))
-                    os.makedirs(base, exist_ok=True)
-                    ts = time.strftime('%Y%m%d%H%M%S', time.localtime())
-                    fname = f"ctx_{role}_{ts}.json"
-                    ctx_obj = {
-                        "meta": {"role": role, "ts": ts},
-                        "sources": {
-                            "system_prompt": system_prompt,
-                            "structured_profile": structured_profile,
-                            "short_term_memories": short_term_memories,
-                            "long_term_memories": long_term_memories,
-                            "chat_history_for_model": msgs_model,
-                            "user_input": content,
-                        }
-                    }
-                    with open(os.path.join(base, fname), 'w', encoding='utf-8') as f:
-                        json.dump(ctx_obj, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
+            # 上下文导出已移除（完全依赖数据库）
 
             # 调用 OpenRouter 流式
             prompt_msgs = [

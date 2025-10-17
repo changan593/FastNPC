@@ -26,9 +26,8 @@ from fastnpc.api.routes.group_routes import router as group_router
 from fastnpc.api.routes.feedback_routes import router as feedback_router
 
 
-# 确保角色目录存在
+# CHAR_DIR不再使用，所有数据存储在PostgreSQL数据库中
 CHAR_DIR_STR = CHAR_DIR.as_posix()
-os.makedirs(CHAR_DIR_STR, exist_ok=True)
 
 
 # 创建 FastAPI 应用实例

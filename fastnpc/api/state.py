@@ -86,7 +86,7 @@ def _collect_and_structure(task_id: str) -> None:
         # 1) 数据抓取
         _set_task(task_id, progress=10, message=f"正在从 {source} 抓取数据…")
         role = normalize_role_name(role)
-        raw_path = pipeline_collect(role, source, choice_index=choice_index, filter_text=filter_text, chosen_href=chosen_href)
+        raw_data, raw_path = pipeline_collect(role, source, choice_index=choice_index, filter_text=filter_text, chosen_href=chosen_href)
         _set_task(task_id, progress=40, message="数据抓取完成，开始结构化…", raw_path=raw_path)
 
         # 2) 结构化
@@ -106,35 +106,24 @@ def _collect_and_structure(task_id: str) -> None:
         )
         _set_task(task_id, progress=90, message="结构化完成，收尾中…", structured_path=structured_path)
 
-        # 移动文件到用户私有目录并保存到数据库
+        # 保存到数据库并清理临时文件
+        temp_files_to_cleanup = [raw_path]  # 临时文件稍后清理
         try:
             if user_id:
-                user_dir = os.path.join(CHAR_DIR_STR, str(user_id))
-                os.makedirs(user_dir, exist_ok=True)
-                
-                # 读取百科全文
-                baike_content = None
-                if os.path.exists(raw_path):
-                    try:
-                        with open(raw_path, 'r', encoding='utf-8') as rf:
-                            baike_content = rf.read()
-                        # 保留文件（作为备份）
-                        shutil.copy(raw_path, os.path.join(user_dir, os.path.basename(raw_path)))
-                    except Exception:
-                        pass
+                # 将爬取的原始数据转换为JSON字符串（百科全文）
+                baike_content = json.dumps(raw_data, ensure_ascii=False, indent=2)
                 
                 # 读取结构化数据并保存到数据库
                 if os.path.exists(structured_path):
-                    new_spath = os.path.join(user_dir, os.path.basename(structured_path))
-                    # 保留文件（作为备份）
-                    shutil.copy(structured_path, new_spath)
-                    
-                    # 保存到数据库（新方式）
                     try:
                         with open(structured_path, 'r', encoding='utf-8') as sf:
                             prof = json.load(sf)
-                        # 使用新的保存函数，将数据保存到所有相关表
+                        temp_files_to_cleanup.append(structured_path)
+                        
+                        # 保存到数据库
                         print(f"[INFO] 开始保存角色 {role} 到数据库...")
+                        print(f"[DEBUG] 百科内容长度: {len(baike_content)} 字符")
+                        print(f"[DEBUG] 章节数: {len(raw_data.get('sections', []))}")
                         save_character_full_data(
                             user_id=int(user_id),
                             name=role,
@@ -142,39 +131,47 @@ def _collect_and_structure(task_id: str) -> None:
                             baike_content=baike_content
                         )
                         print(f"[INFO] 角色 {role} 保存到数据库成功！")
+                        
+                        # 清理临时文件
+                        for temp_file in temp_files_to_cleanup:
+                            try:
+                                if os.path.exists(temp_file):
+                                    os.remove(temp_file)
+                                    print(f"[INFO] 已删除临时文件: {temp_file}")
+                            except Exception as e:
+                                print(f"[WARNING] 删除临时文件失败 {temp_file}: {e}")
+                        
+                        # 清理可能的中间产物文件（facts, bullets, summary, md）
+                        try:
+                            base_dir = os.path.dirname(raw_path)
+                            base_name = os.path.basename(raw_path)
+                            name_wo_ext = os.path.splitext(base_name)[0]
+                            derived = name_wo_ext.replace('zhwiki_', '').replace('baike_', '')
+                            
+                            optional_files = [
+                                os.path.join(base_dir, f"facts_{derived}.json"),
+                                os.path.join(base_dir, f"bullets_{derived}.txt"),
+                                os.path.join(base_dir, f"summary_{derived}.txt"),
+                                os.path.join(base_dir, f"md_{derived}.md"),
+                            ]
+                            for opt_file in optional_files:
+                                if os.path.exists(opt_file):
+                                    try:
+                                        os.remove(opt_file)
+                                        print(f"[INFO] 已删除中间文件: {opt_file}")
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
+                            
                     except Exception as e:
                         import traceback
                         print(f"[ERROR] 保存角色数据到数据库失败: {e}")
                         print(f"[ERROR] 详细错误: {traceback.format_exc()}")
-                        # 降级到旧方式（确保基本功能可用）
-                        try:
-                            update_character_structured(int(user_id), role, json.dumps(prof, ensure_ascii=False))
-                            print(f"[INFO] 降级到旧方式保存成功")
-                        except Exception as e2:
-                            print(f"[ERROR] 旧方式也失败了: {e2}")
-                # 同步移动可选导出的 facts 与 bullets
-                try:
-                    # 与 structure.run 的默认命名保持一致
-                    base_dir = os.path.dirname(raw_path)
-                    base_name = os.path.basename(raw_path)
-                    name_wo_ext = os.path.splitext(base_name)[0]
-                    derived = name_wo_ext.replace('zhwiki_', '').replace('baike_', '')
-                    facts_p = os.path.join(base_dir, f"facts_{derived}.json")
-                    bullets_p = os.path.join(base_dir, f"bullets_{derived}.txt")
-                    summary_p = os.path.join(base_dir, f"summary_{derived}.txt")
-                    md_p = os.path.join(base_dir, f"md_{derived}.md")
-                    if export_facts and os.path.exists(facts_p):
-                        shutil.move(facts_p, os.path.join(user_dir, os.path.basename(facts_p)))
-                    if export_bullets and os.path.exists(bullets_p):
-                        shutil.move(bullets_p, os.path.join(user_dir, os.path.basename(bullets_p)))
-                    if export_summary and os.path.exists(summary_p):
-                        shutil.move(summary_p, os.path.join(user_dir, os.path.basename(summary_p)))
-                    if export_md and os.path.exists(md_p):
-                        shutil.move(md_p, os.path.join(user_dir, os.path.basename(md_p)))
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                        raise  # 抛出异常
+        except Exception as e:
+            print(f"[ERROR] 角色创建失败: {e}")
+            raise
 
         _set_task(task_id, status="done", progress=100, message="已完成")
     except Exception as e:

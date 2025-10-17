@@ -914,6 +914,18 @@ def add_message(user_id: int, character_id: int, role: str, content: str, system
 
 # ----- User settings & password -----
 
+def get_user_id_by_username(username: str) -> Optional[int]:
+    """根据用户名查询用户ID"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE username=%s", (username,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
 def get_user_settings(user_id: int) -> Dict[str, Any]:
     conn = _get_conn()
     try:
@@ -1643,6 +1655,14 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
                 conn.commit()
                 character_id = int(cur.lastrowid)
         
+        # 辅助函数：将复杂类型转换为JSON字符串
+        def _safe_json_value(value):
+            if value is None:
+                return None
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, ensure_ascii=False)
+            return str(value) if value else None
+        
         # 2. 保存基础身份信息
         basic_info = structured_data.get('基础身份信息', {})
         if basic_info:
@@ -1650,9 +1670,15 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_basic_info(character_id, name, age, gender, occupation, identity_background, appearance, titles, brief_intro)
                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (character_id, basic_info.get('姓名'), basic_info.get('年龄'), basic_info.get('性别'),
-                 basic_info.get('职业'), basic_info.get('身份背景'), basic_info.get('外貌特征'),
-                 basic_info.get('称谓/头衔'), basic_info.get('人物简介'))
+                (character_id, 
+                 _safe_json_value(basic_info.get('姓名')),
+                 _safe_json_value(basic_info.get('年龄')),
+                 _safe_json_value(basic_info.get('性别')),
+                 _safe_json_value(basic_info.get('职业')),
+                 _safe_json_value(basic_info.get('身份背景')),
+                 _safe_json_value(basic_info.get('外貌特征')),
+                 _safe_json_value(basic_info.get('称谓/头衔')),
+                 _safe_json_value(basic_info.get('人物简介')))
             )
         
         # 3. 保存知识与能力
@@ -1662,7 +1688,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_knowledge(character_id, knowledge_domain, skills, limitations)
                    VALUES(%s,%s,%s,%s)""",
-                (character_id, knowledge.get('知识领域'), knowledge.get('技能'), knowledge.get('限制'))
+                (character_id, _safe_json_value(knowledge.get('知识领域')), 
+                 _safe_json_value(knowledge.get('技能')), _safe_json_value(knowledge.get('限制')))
             )
         
         # 4. 保存个性与行为设定
@@ -1672,8 +1699,10 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_personality(character_id, traits, values, emotion_style, speaking_style, preferences, dislikes, motivation_goals)
                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (character_id, personality.get('性格特质'), personality.get('价值观'), personality.get('情绪风格'),
-                 personality.get('说话方式'), personality.get('偏好'), personality.get('厌恶'), personality.get('动机与目标'))
+                (character_id, _safe_json_value(personality.get('性格特质')), 
+                 _safe_json_value(personality.get('价值观')), _safe_json_value(personality.get('情绪风格')),
+                 _safe_json_value(personality.get('说话方式')), _safe_json_value(personality.get('偏好')), 
+                 _safe_json_value(personality.get('厌恶')), _safe_json_value(personality.get('动机与目标')))
             )
         
         # 5. 保存对话与交互规范
@@ -1683,7 +1712,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_dialogue_rules(character_id, tone, language_style, behavior_constraints, interaction_pattern)
                    VALUES(%s,%s,%s,%s,%s)""",
-                (character_id, dialogue.get('语气'), dialogue.get('语言风格'), dialogue.get('行为约束'), dialogue.get('互动模式'))
+                (character_id, _safe_json_value(dialogue.get('语气')), _safe_json_value(dialogue.get('语言风格')), 
+                 _safe_json_value(dialogue.get('行为约束')), _safe_json_value(dialogue.get('互动模式')))
             )
         
         # 6. 保存任务/功能性信息
@@ -1693,7 +1723,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_tasks(character_id, task_goal, dialogue_intent, interaction_limits, trigger_conditions)
                    VALUES(%s,%s,%s,%s,%s)""",
-                (character_id, tasks.get('任务目标'), tasks.get('对话意图'), tasks.get('交互限制'), tasks.get('触发条件'))
+                (character_id, _safe_json_value(tasks.get('任务目标')), _safe_json_value(tasks.get('对话意图')), 
+                 _safe_json_value(tasks.get('交互限制')), _safe_json_value(tasks.get('触发条件')))
             )
         
         # 7. 保存环境与世界观
@@ -1703,7 +1734,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_worldview(character_id, worldview, timeline, social_rules, external_resources)
                    VALUES(%s,%s,%s,%s,%s)""",
-                (character_id, worldview.get('世界观'), worldview.get('时间线'), worldview.get('社会规则'), worldview.get('外部资源'))
+                (character_id, _safe_json_value(worldview.get('世界观')), _safe_json_value(worldview.get('时间线')), 
+                 _safe_json_value(worldview.get('社会规则')), _safe_json_value(worldview.get('外部资源')))
             )
         
         # 8. 保存背景故事
@@ -1713,7 +1745,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_background(character_id, origin, current_situation, secrets)
                    VALUES(%s,%s,%s,%s)""",
-                (character_id, background.get('出身'), background.get('当前处境'), background.get('秘密'))
+                (character_id, _safe_json_value(background.get('出身')), 
+                 _safe_json_value(background.get('当前处境')), _safe_json_value(background.get('秘密')))
             )
             
             # 保存经历
@@ -1745,8 +1778,9 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_system_params(character_id, consistency_control, preference_control, safety_limits, deduction_range)
                    VALUES(%s,%s,%s,%s,%s)""",
-                (character_id, system_params.get('一致性控制'), system_params.get('偏好控制'), 
-                 system_params.get('安全限制'), system_params.get('演绎范围'))
+                (character_id, _safe_json_value(system_params.get('一致性控制')), 
+                 _safe_json_value(system_params.get('偏好控制')), 
+                 _safe_json_value(system_params.get('安全限制')), _safe_json_value(system_params.get('演绎范围')))
             )
         
         # 10. 保存来源信息
@@ -1768,7 +1802,8 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
             cur.execute(
                 """INSERT INTO character_source_info(character_id, unique_id, source_url, source_info_size)
                    VALUES(%s,%s,%s,%s)""",
-                (character_id, source_info.get('唯一标识'), source_info.get('链接'), source_info_size)
+                (character_id, _safe_json_value(source_info.get('唯一标识')), 
+                 _safe_json_value(source_info.get('链接')), source_info_size)
             )
         
         conn.commit()
