@@ -488,20 +488,19 @@ def _append_long_term_memory(role: str, user_id: int, new_memories: List[str]) -
 
 
 def _get_role_summary(role: str, user_id: int) -> str:
-    """从结构化文件提取角色简介（用于长期记忆整合）"""
+    """从数据库提取角色简介（用于长期记忆整合）"""
     try:
         role = normalize_role_name(role)
-        path = _structured_path_for_role(role, user_id=user_id)
-        if not os.path.exists(path):
-            return "角色简介缺失"
         
-        with open(path, 'r', encoding='utf-8') as f:
-            prof = json.load(f)
+        # 从数据库加载角色profile（带缓存）
+        prof = _load_character_profile(role, user_id)
+        if not prof:
+            return "角色简介缺失"
         
         # 优先从基础身份信息获取
         base_info = prof.get("基础身份信息", {})
         if isinstance(base_info, dict):
-            summary = base_info.get("人物简介") or base_info.get("简介") or base_info.get("自我描述")
+            summary = base_info.get("人物简介") or base_info.get("简介") or base_info.get("自我描述") or base_info.get("brief_intro")
             if summary:
                 return str(summary).strip()
         
@@ -511,6 +510,7 @@ def _get_role_summary(role: str, user_id: int) -> str:
             return str(summary).strip()
         
         return f"{role} 的角色画像"
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR] 获取角色简介失败: {e}")
         return "角色简介缺失"
 

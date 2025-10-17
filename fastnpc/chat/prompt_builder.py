@@ -83,7 +83,7 @@ def build_chat_system_prompt(
                             f"我的性格特质是 {_safe_get(behavior, '性格特质')}，价值观是 {_safe_get(behavior, '价值观')}。\n"
                             f"我在情绪上的表现通常是 {_safe_get(behavior, '情绪风格')}。\n"
                             f"我的说话方式是 {_safe_get(behavior, '说话方式')}。\n"
-                            f"我喜欢 {_safe_get(behavior, '偏好与厌恶', default='（无）')}，讨厌 {_safe_get(behavior, '偏好与厌恶', default='（无）')}。\n"
+                            f"我喜欢 {_safe_get(behavior, '偏好')}，讨厌 {_safe_get(behavior, '厌恶')}。\n"
                             f"我的目标和动机是 {_safe_get(behavior, '动机与目标')}。")
     parts_structured.append("背景故事\n"
                             f"我出身于 {_safe_get(story, '出身')}。\n"

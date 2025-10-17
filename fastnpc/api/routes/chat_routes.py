@@ -27,6 +27,7 @@ from fastnpc.api.auth import (
 from fastnpc.api.utils import (
     _require_user,
     _structured_path_for_role,
+    _load_character_profile,
     _truncate_structured_profile_text,
     _truncate_messages,
     _ensure_chat_session_for_role,
@@ -187,15 +188,17 @@ async def api_post_message(role: str, request: Request):
 
     # 加载结构化画像和记忆
     structured_profile = None
+    # 从数据库加载角色profile和记忆
     short_term_memories = []
     long_term_memories = []
     try:
-        path = _structured_path_for_role(role, user_id=uid)
-        with open(path, 'r', encoding='utf-8') as f:
-            structured_profile = json.load(f)
-        # 读取记忆
+        # 使用数据库加载函数（支持缓存）
+        structured_profile = _load_character_profile(role, uid) or {}
+        
+        # 读取记忆（从数据库）
         short_term_memories, long_term_memories = _read_memories_from_profile(role, uid)
-    except Exception:
+    except Exception as e:
+        print(f"[WARNING] 加载角色profile失败: {e}")
         structured_profile = {}
     
     # 读取会话历史（从DB，避免会话重启丢失）
@@ -302,15 +305,17 @@ async def api_stream_message(role: str, content: str, request: Request, export_c
 
             # 加载结构化画像和记忆
             structured_profile = None
+            # 从数据库加载角色profile和记忆
             short_term_memories = []
             long_term_memories = []
             try:
-                path = _structured_path_for_role(role, user_id=uid)
-                with open(path, 'r', encoding='utf-8') as f:
-                    structured_profile = json.load(f)
-                # 读取记忆
+                # 使用数据库加载函数（支持缓存）
+                structured_profile = _load_character_profile(role, uid) or {}
+                
+                # 读取记忆（从数据库）
                 short_term_memories, long_term_memories = _read_memories_from_profile(role, uid)
-            except Exception:
+            except Exception as e:
+                print(f"[WARNING] 加载角色profile失败: {e}")
                 structured_profile = {}
             
             # 读取会话历史（从DB）

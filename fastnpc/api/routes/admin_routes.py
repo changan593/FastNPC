@@ -25,7 +25,7 @@ from fastnpc.api.auth import (
     list_group_messages,
     list_group_members,
 )
-from fastnpc.api.utils import _require_admin, _require_user, _structured_path_for_role, _read_memories_from_profile
+from fastnpc.api.utils import _require_admin, _require_user, _structured_path_for_role, _load_character_profile, _read_memories_from_profile
 from fastnpc.utils.roles import normalize_role_name
 from fastnpc.chat.prompt_builder import build_chat_system_prompt
 
@@ -190,12 +190,11 @@ def admin_chat_compiled(request: Request, msg_id: int, uid: int = 0, cid: int = 
                 transcript_lines.append(f"{user_name}: {c}")
             elif r == 'assistant':
                 transcript_lines.append(f"{role}: {c}")
-        # 角色画像
+        # 角色画像（从数据库加载）
         try:
-            spath = _structured_path_for_role(role, user_id=uid)
-            with open(spath, 'r', encoding='utf-8') as f:
-                structured_profile = json.load(f)
-        except Exception:
+            structured_profile = _load_character_profile(role, uid) or {}
+        except Exception as e:
+            print(f"[WARNING] 加载角色profile失败: {e}")
             structured_profile = {}
         
         # 读取短期和长期记忆
