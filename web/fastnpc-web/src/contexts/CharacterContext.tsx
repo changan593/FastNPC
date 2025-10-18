@@ -248,7 +248,13 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     try {
       await api.put(`/api/characters/${encodeURIComponent(oldName)}/rename`, { new_name: newName.trim() })
       setRenaming(''); setNewName('')
-      await refreshList()
+      
+      // 优化：直接在前端更新，避免重新请求列表
+      const newCharacters = characters.map(c => 
+        c.role === oldName ? { ...c, role: newName.trim() } : c
+      )
+      setCharacters(newCharacters)
+      
       if (activeRole === oldName) setActiveRole(newName.trim())
     } catch (e:any) { alert(e?.response?.data?.error || '重命名失败') }
   }
@@ -257,16 +263,38 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     if (!confirm(`确定删除角色「${name}」及其消息吗？`)) return
     try {
       await api.delete(`/api/characters/${encodeURIComponent(name)}`)
-      await refreshList()
-      if (activeRole === name) setActiveRole(characters[0]?.role || '')
+      
+      // 优化：直接在前端删除，避免重新请求列表
+      const newCharacters = characters.filter(c => c.role !== name)
+      setCharacters(newCharacters)
+      
+      // 如果删除的是当前激活的角色，切换到第一个角色
+      if (activeRole === name) {
+        setActiveRole(newCharacters[0]?.role || '')
+      }
     } catch (e:any) { alert(e?.response?.data?.error || '删除失败') }
   }
 
   async function copyRole(name: string) {
     try {
       const { data } = await api.post(`/api/characters/${encodeURIComponent(name)}/copy`)
-      await refreshList()
-      if (data?.new_name) setActiveRole(data.new_name)
+      
+      // 优化：直接在前端添加新角色，避免重新请求列表
+      if (data?.new_name) {
+        const originalChar = characters.find(c => c.role === name)
+        if (originalChar) {
+          const newChar = {
+            ...originalChar,
+            role: data.new_name,
+            updated_at: Date.now() / 1000
+          }
+          setCharacters([newChar, ...characters])
+        } else {
+          // 如果找不到原角色，则刷新列表
+          await refreshList()
+        }
+        setActiveRole(data.new_name)
+      }
     } catch (e:any) { alert(e?.response?.data?.error || '复制失败') }
   }
 

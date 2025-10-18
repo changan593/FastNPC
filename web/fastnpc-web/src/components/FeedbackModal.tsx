@@ -12,8 +12,6 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
   
   const [feedbackTitle, setFeedbackTitle] = useState('')
   const [feedbackContent, setFeedbackContent] = useState('')
-  const [feedbackAttachments, setFeedbackAttachments] = useState<string[]>([])
-  const [feedbackUploading, setFeedbackUploading] = useState(false)
   const [feedbackTab, setFeedbackTab] = useState<'submit' | 'history'>('submit')
   const [myFeedbacks, setMyFeedbacks] = useState<Feedback[]>([])
   const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null)
@@ -23,33 +21,6 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
       loadMyFeedbacks()
     }
   }, [show, feedbackTab])
-
-  async function handleFeedbackImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      alert('只支持图片格式')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('图片大小不能超过5MB')
-      return
-    }
-
-    try {
-      setFeedbackUploading(true)
-      const formData = new FormData()
-      formData.append('file', file)
-      const { data } = await api.post('/api/feedbacks/upload', formData)
-      setFeedbackAttachments([...feedbackAttachments, data.url])
-    } catch (e: any) {
-      alert(e?.response?.data?.error || '上传失败')
-    } finally {
-      setFeedbackUploading(false)
-    }
-  }
 
   async function loadMyFeedbacks() {
     try {
@@ -71,16 +42,13 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
     }
 
     try {
-      const attachments = feedbackAttachments.length > 0 ? JSON.stringify(feedbackAttachments) : null
       await api.post('/api/feedbacks', {
         title: feedbackTitle,
         content: feedbackContent,
-        attachments,
       })
       alert('反馈提交成功！感谢您的反馈')
       setFeedbackTitle('')
       setFeedbackContent('')
-      setFeedbackAttachments([])
       setFeedbackTab('history')
       await loadMyFeedbacks()
     } catch (e: any) {
@@ -91,7 +59,6 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
   function handleClose() {
     setFeedbackTitle('')
     setFeedbackContent('')
-    setFeedbackAttachments([])
     setSelectedFeedback(null)
     onClose()
   }
@@ -135,64 +102,10 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
                 value={feedbackContent}
                 onChange={e => setFeedbackContent(e.target.value)}
                 placeholder="请详细描述您遇到的问题或建议"
-                rows={6}
+                rows={8}
                 style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', resize: 'vertical' }}
               />
             </label>
-            <label>
-              上传图片（可选）
-              <input type="file" accept="image/*" onChange={handleFeedbackImageUpload} disabled={feedbackUploading} />
-              {feedbackUploading && <div style={{ marginTop: '8px', color: '#6b7280' }}>上传中...</div>}
-            </label>
-            {feedbackAttachments.length > 0 && (
-              <div style={{ marginTop: '12px' }}>
-                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>已上传的图片：</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                  {feedbackAttachments.map((url, idx) => (
-                    <div key={idx} style={{ position: 'relative' }}>
-                      <img
-                        src={url}
-                        alt={`附件${idx + 1}`}
-                        style={{
-                          width: '120px',
-                          height: '120px',
-                          objectFit: 'cover',
-                          borderRadius: '8px',
-                          border: '2px solid var(--border)',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => window.open(url, '_blank')}
-                        title="点击查看大图"
-                      />
-                      <button
-                        onClick={() => setFeedbackAttachments(feedbackAttachments.filter((_, i) => i !== idx))}
-                        style={{
-                          position: 'absolute',
-                          top: '-8px',
-                          right: '-8px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: '#ef4444',
-                          color: 'white',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '16px',
-                          fontWeight: 'bold',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                        }}
-                        title="删除"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="feedback-actions">
               <button onClick={handleClose} className="btn-secondary">
                 取消
@@ -254,29 +167,6 @@ export function FeedbackModal({ show, onClose }: FeedbackModalProps) {
                   <label>反馈内容</label>
                   <div className="feedback-text">{selectedFeedback.content}</div>
                 </div>
-
-                {selectedFeedback.attachments && JSON.parse(selectedFeedback.attachments).length > 0 && (
-                  <div className="feedback-detail-section">
-                    <label>附件图片</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                      {JSON.parse(selectedFeedback.attachments).map((url: string, idx: number) => (
-                        <a key={idx} href={url} target="_blank" rel="noreferrer">
-                          <img
-                            src={url}
-                            alt={`附件${idx + 1}`}
-                            style={{
-                              width: '100px',
-                              height: '100px',
-                              objectFit: 'cover',
-                              borderRadius: '6px',
-                              border: '1px solid var(--border)',
-                            }}
-                          />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {selectedFeedback.admin_reply && (
                   <div className="feedback-detail-section admin-reply-section">

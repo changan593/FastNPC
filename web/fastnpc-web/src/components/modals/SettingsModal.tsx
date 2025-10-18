@@ -105,25 +105,31 @@ export function SettingsModal({ show, onClose }: SettingsModalProps) {
         </label>
         <label>
           上下文预算（字符）
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>可选范围: 50-5000</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input type="number" min={0} placeholder="会话记忆（默认 3000）" value={ctxMaxChat} onChange={e => setCtxMaxChat(e.target.value)} />
-            <input type="number" min={0} placeholder="短期记忆（默认 3000）" value={ctxMaxStm} onChange={e => setCtxMaxStm(e.target.value)} />
-            <input type="number" min={0} placeholder="长期记忆（默认 4000）" value={ctxMaxLtm} onChange={e => setCtxMaxLtm(e.target.value)} />
+            <input type="number" min={50} max={5000} placeholder="会话记忆（默认 3000）" value={ctxMaxChat} onChange={e => setCtxMaxChat(e.target.value)} />
+            <input type="number" min={50} max={5000} placeholder="短期记忆（默认 3000）" value={ctxMaxStm} onChange={e => setCtxMaxStm(e.target.value)} />
+            <input type="number" min={50} max={5000} placeholder="长期记忆（默认 4000）" value={ctxMaxLtm} onChange={e => setCtxMaxLtm(e.target.value)} />
           </div>
         </label>
         <label>
           个人简介（用于群聊）
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
+            {userProfile.length}/200 字
+          </div>
           <textarea
             value={userProfile}
             onChange={e => setUserProfile(e.target.value)}
             placeholder="简单介绍自己，用于群聊中其他角色了解你"
+            maxLength={200}
             rows={3}
             style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', boxSizing: 'border-box', resize: 'vertical' }}
           />
         </label>
         <label>
-          群聊最大角色回复轮数（默认3）
-          <input type="number" min={1} max={10} value={maxGroupReplyRounds} onChange={e => setMaxGroupReplyRounds(e.target.value)} placeholder="默认3" />
+          群聊最大角色回复轮数
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>可选范围: 3-10（默认3）</div>
+          <input type="number" min={3} max={10} value={maxGroupReplyRounds} onChange={e => setMaxGroupReplyRounds(e.target.value)} placeholder="默认3" />
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>角色连续发言达到此轮数后，将等待用户输入</div>
         </label>
         {/* 模型回退顺序由系统随机，不提供手动设置 */}

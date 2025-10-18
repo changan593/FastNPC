@@ -146,7 +146,7 @@ function AppContent() {
   useEffect(() => {
     console.log(`[DEBUG] useEffect触发 - activeType=${activeType}, activeGroupId=${activeGroupId}, activeRole=${activeRole}`)
 
-    // 离开上一个单聊时压缩记忆
+    // 离开上一个单聊时压缩记忆（异步，不阻塞）
     if (prevActiveRoleRef.current && prevActiveRoleRef.current !== activeRole) {
       console.log(`[INFO] 切换单聊，压缩记忆: ${prevActiveRoleRef.current}`)
       api.post(`/api/chat/${prevActiveRoleRef.current}/compress-all`).catch(() => {
@@ -154,7 +154,7 @@ function AppContent() {
       })
     }
 
-    // 离开上一个群聊时压缩记忆
+    // 离开上一个群聊时压缩记忆（异步，不阻塞）
     if (prevActiveGroupRef.current && prevActiveGroupRef.current !== activeGroupId) {
       console.log(`[INFO] 切换群聊，压缩记忆: ${prevActiveGroupRef.current}`)
       api.post(`/api/groups/${prevActiveGroupRef.current}/compress-memories`).catch(() => {
@@ -168,12 +168,24 @@ function AppContent() {
 
     setTypingStatus('')
 
+    // 优化：并行加载，提升速度
     if (activeType === 'group' && activeGroupId) {
-      reloadGroupMessages()
-      loadGroupMemberBriefs()
+      Promise.all([
+        reloadGroupMessages(),
+        loadGroupMemberBriefs()
+      ]).catch(err => console.error('加载群聊数据失败:', err))
     } else if (activeType === 'character' && activeRole) {
-      reloadMessages()
-      loadCharBrief()
+      // 显示加载提示
+      setTypingStatus('加载中...')
+      Promise.all([
+        reloadMessages(),
+        loadCharBrief()
+      ]).then(() => {
+        setTypingStatus('')
+      }).catch(err => {
+        console.error('加载角色数据失败:', err)
+        setTypingStatus('')
+      })
     }
   }, [activeType, activeGroupId, activeRole])
 
@@ -535,7 +547,17 @@ function AppContent() {
 
       <ManageCharModal show={showManageChar} onClose={() => setShowManageChar(false)} activeRole={activeRole} />
 
-      <SettingsModal show={showSettings} onClose={() => setShowSettings(false)} />
+      <SettingsModal show={showSettings} onClose={async () => {
+        setShowSettings(false)
+        // 重新加载设置以确保最新值生效
+        try {
+          const { data: settings } = await api.get('/api/me/settings')
+          const s = settings.settings || {}
+          setMaxGroupReplyRounds(s.max_group_reply_rounds != null ? String(s.max_group_reply_rounds) : '3')
+        } catch (e) {
+          console.error('重新加载设置失败:', e)
+        }
+      }} />
 
       <FeedbackModal show={showFeedback} onClose={() => setShowFeedback(false)} />
 

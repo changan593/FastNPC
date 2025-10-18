@@ -61,12 +61,27 @@ async def api_put_settings(request: Request):
     ctx_max_chat = _to_int(payload.get('ctx_max_chat'))
     ctx_max_stm = _to_int(payload.get('ctx_max_stm'))
     ctx_max_ltm = _to_int(payload.get('ctx_max_ltm'))
-    # 读取用户简介
+    
+    # 验证记忆预算范围（50-5000）
+    if ctx_max_chat is not None and (ctx_max_chat < 50 or ctx_max_chat > 5000):
+        return JSONResponse({"error": "会话记忆预算必须在50-5000之间"}, status_code=400)
+    if ctx_max_stm is not None and (ctx_max_stm < 50 or ctx_max_stm > 5000):
+        return JSONResponse({"error": "短期记忆预算必须在50-5000之间"}, status_code=400)
+    if ctx_max_ltm is not None and (ctx_max_ltm < 50 or ctx_max_ltm > 5000):
+        return JSONResponse({"error": "长期记忆预算必须在50-5000之间"}, status_code=400)
+    
+    # 读取用户简介（限制200字）
     profile = payload.get('profile')
     if profile is not None:
         profile = str(profile).strip() or None
-    # 读取群聊最大角色回复轮数
+        if profile and len(profile) > 200:
+            return JSONResponse({"error": "个人简介不能超过200字"}, status_code=400)
+    
+    # 读取群聊最大角色回复轮数（3-10）
     max_group_reply_rounds = _to_int(payload.get('max_group_reply_rounds'), default=3)
+    if max_group_reply_rounds < 3 or max_group_reply_rounds > 10:
+        return JSONResponse({"error": "群聊最大角色回复轮数必须在3-10之间"}, status_code=400)
+    
     update_user_settings(uid, default_model, "", ctx_max_chat=ctx_max_chat, ctx_max_stm=ctx_max_stm, ctx_max_ltm=ctx_max_ltm, profile=profile, max_group_reply_rounds=max_group_reply_rounds)
     return {"ok": True}
 

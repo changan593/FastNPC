@@ -443,12 +443,16 @@ async def api_judge_next_speaker(group_id: int, request: Request):
                 structured = _load_character_profile(member['member_name'], uid)
                 if structured:
                     base = structured.get('基础身份信息', {})
-                    personality = structured.get('个性与行为设定', {})
-                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                    # 优先使用LLM生成的人物简介
+                    brief = base.get("人物简介") or base.get("简介") or base.get("自我描述") or base.get("brief_intro")
+                    # 如果没有人物简介，再使用职业+性格拼接作为兜底
+                    if not brief or not str(brief).strip():
+                        personality = structured.get('个性与行为设定', {})
+                        brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
                     member_profiles.append({
                         "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
                         "type": "character",
-                        "profile": brief[:200]
+                        "profile": str(brief).strip()[:200]
                     })
                 else:
                     member_profiles.append({
@@ -543,11 +547,15 @@ async def api_generate_group_reply(group_id: int, request: Request):
             prof = _load_character_profile(member['member_name'], uid)
             if prof:
                 base = prof.get('基础身份信息', {})
-                personality = prof.get('个性与行为设定', {})
-                brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                # 优先使用LLM生成的人物简介
+                brief = base.get("人物简介") or base.get("简介") or base.get("自我描述") or base.get("brief_intro")
+                # 如果没有人物简介，再使用职业+性格拼接作为兜底
+                if not brief or not str(brief).strip():
+                    personality = prof.get('个性与行为设定', {})
+                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
                 other_characters.append({
                     "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
-                    "brief": brief[:200]
+                    "brief": str(brief).strip()[:200]
                 })
             else:
                 other_characters.append({
@@ -803,13 +811,17 @@ def api_get_member_briefs(group_id: int, request: Request):
                 prof = _load_character_profile(member['member_name'], uid)
                 if prof:
                     base = prof.get('基础身份信息', {})
-                    personality = prof.get('个性与行为设定', {})
-                    brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
+                    # 优先使用LLM生成的人物简介
+                    brief = base.get("人物简介") or base.get("简介") or base.get("自我描述") or base.get("brief_intro")
+                    # 如果没有人物简介，再使用职业+性格拼接作为兜底
+                    if not brief or not str(brief).strip():
+                        personality = prof.get('个性与行为设定', {})
+                        brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
                     briefs.append({
                         "name": _remove_timestamp_suffix(member['member_name']),  # 显示名称（去掉时间后缀）
                         "original_name": member['member_name'],  # 原始名称（用于API调用和比较）
                         "type": "character",
-                        "brief": brief[:100]
+                        "brief": str(brief).strip()[:100]
                     })
                 else:
                     briefs.append({

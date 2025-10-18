@@ -485,18 +485,6 @@ export function AdminPanel() {
                 </div>
                 <h4>反馈内容</h4>
                 <div className="feedback-content">{adminSelectedFeedback.content}</div>
-                {adminSelectedFeedback.attachments && JSON.parse(adminSelectedFeedback.attachments).length > 0 && (
-                  <div style={{ marginTop: '16px' }}>
-                    <h4>附件图片</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '12px' }}>
-                      {JSON.parse(adminSelectedFeedback.attachments).map((url: string, idx: number) => (
-                        <a key={idx} href={url} target="_blank" rel="noreferrer">
-                          <img src={url} alt="" style={{ width: '150px', height: '150px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
               <div className="admin-detail-section">
                 <h4>管理员回复</h4>

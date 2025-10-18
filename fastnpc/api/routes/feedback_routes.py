@@ -9,7 +9,7 @@ import json
 import base64
 from typing import Optional
 
-from fastapi import APIRouter, Request, UploadFile, File
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from fastnpc.config import CHAR_DIR
@@ -50,38 +50,6 @@ async def submit_feedback(request: Request):
             attachments=attachments
         )
         return {"ok": True, "id": feedback_id}
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-@router.post('/api/feedbacks/upload')
-async def upload_feedback_attachment(request: Request, file: UploadFile = File(...)):
-    """上传反馈附件（图片）"""
-    user = _require_user(request)
-    if not user:
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    
-    # 只允许图片
-    if not file.content_type or not file.content_type.startswith('image/'):
-        return JSONResponse({"error": "只支持图片格式"}, status_code=400)
-    
-    # 限制文件大小 5MB
-    content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        return JSONResponse({"error": "图片大小不能超过5MB"}, status_code=400)
-    
-    try:
-        # 生成文件名
-        import time
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-        filename = f"{user['uid']}_{int(time.time())}_{file.filename}"
-        filepath = FEEDBACK_DIR / filename
-        
-        # 保存文件
-        with open(filepath, 'wb') as f:
-            f.write(content)
-        
-        return {"ok": True, "filename": filename, "url": f"/feedbacks/{filename}"}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
