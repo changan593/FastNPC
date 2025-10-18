@@ -3,6 +3,7 @@ export interface CharacterItem {
   path: string;
   updated_at: number;
   preview?: string;
+  avatar_url?: string;
 }
 
 export interface Message {

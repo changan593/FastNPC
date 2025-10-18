@@ -1,4 +1,4 @@
-import type { MemberBrief } from '../types'
+import type { MemberBrief, CharacterItem } from '../types'
 import { useAuth } from '../contexts/AuthContext'
 
 interface InfoPanelProps {
@@ -7,6 +7,7 @@ interface InfoPanelProps {
   activeGroupId: number | null
   charIntro: string
   groupMemberBriefs: MemberBrief[]
+  characters: CharacterItem[]
   onManageCharacter: () => void
   onManageGroup: () => void
   onShowFeedback: () => void
@@ -18,11 +19,18 @@ export function InfoPanel({
   activeGroupId,
   charIntro,
   groupMemberBriefs,
+  characters,
   onManageCharacter,
   onManageGroup,
   onShowFeedback,
 }: InfoPanelProps) {
   const { user } = useAuth()
+
+  // 获取角色头像
+  const getCharacterAvatar = (roleName: string) => {
+    const char = characters.find(c => c.role === roleName || c.role.includes(roleName.split('_')[0]))
+    return char?.avatar_url
+  }
 
   return (
     <aside className="group-info-panel">
@@ -35,7 +43,23 @@ export function InfoPanel({
       <div className="info-content">
         {activeType === 'character' && activeRole ? (
           <div className="member-brief">
-            <div className="member-name">🎭 {activeRole}</div>
+            <div className="member-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {getCharacterAvatar(activeRole) ? (
+                <img 
+                  src={getCharacterAvatar(activeRole)} 
+                  alt={activeRole}
+                  style={{ 
+                    width: '24px', 
+                    height: '24px', 
+                    borderRadius: '4px', 
+                    objectFit: 'cover' 
+                  }}
+                />
+              ) : (
+                '🎭'
+              )}
+              <span>{activeRole}</span>
+            </div>
             {charIntro ? (
               <div
                 className="member-intro"
@@ -57,8 +81,24 @@ export function InfoPanel({
         ) : activeType === 'group' && activeGroupId ? (
           groupMemberBriefs.map((member, idx) => (
             <div key={idx} className="member-brief">
-              <div className="member-name">
-                {member.type === 'user' ? '👤' : '🎭'} {member.name}
+              <div className="member-name" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {member.type === 'user' ? (
+                  '👤'
+                ) : getCharacterAvatar(member.name) ? (
+                  <img 
+                    src={getCharacterAvatar(member.name)} 
+                    alt={member.name}
+                    style={{ 
+                      width: '24px', 
+                      height: '24px', 
+                      borderRadius: '4px', 
+                      objectFit: 'cover' 
+                    }}
+                  />
+                ) : (
+                  '🎭'
+                )}
+                <span>{member.name}</span>
               </div>
               <div className="member-intro">{member.brief || '暂无简介'}</div>
             </div>

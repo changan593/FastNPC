@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { CharacterItem, GroupItem } from '../types'
 import { useCharacter } from '../contexts/CharacterContext'
-import { useGroup } from '../contexts/GroupContext'
 
 interface SidebarProps {
   characters: CharacterItem[]
@@ -99,11 +98,32 @@ export function Sidebar({
                 }
               }}
             >
-              <div className="name">
-                <span>{item.type === 'character' ? '👤 ' : '💬 '}</span>
-                {item.name}
+              {item.type === 'character' && item.data.avatar_url ? (
+                <div 
+                  className="avatar" 
+                  style={{ 
+                    width: 40, 
+                    height: 40, 
+                    borderRadius: 8, 
+                    overflow: 'hidden',
+                    marginRight: 12,
+                    flexShrink: 0
+                  }}
+                >
+                  <img 
+                    src={item.data.avatar_url} 
+                    alt={item.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+              ) : null}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="name">
+                  <span>{item.type === 'character' ? '👤 ' : '💬 '}</span>
+                  {item.name}
+                </div>
+                <div className="time">{new Date(item.updated_at * 1000).toLocaleDateString()}</div>
               </div>
-              <div className="time">{new Date(item.updated_at * 1000).toLocaleDateString()}</div>
             </div>
             {item.type === 'character' && item.data.preview ? (
               <div

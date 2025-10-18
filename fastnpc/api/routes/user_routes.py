@@ -4,17 +4,24 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+import os
+from pathlib import Path
 
+from fastnpc.config import BASE_DIR, USE_POSTGRESQL
 from fastnpc.api.auth import (
     get_user_settings,
     update_user_settings,
     change_password,
     delete_account,
     verify_user,
+    _get_conn,
+    _return_conn,
+    _row_to_dict,
 )
 from fastnpc.api.utils import _require_user
+from fastnpc.utils.image_utils import process_uploaded_avatar
 
 
 router = APIRouter()
@@ -25,6 +32,8 @@ ALLOWED_MODELS = [
     "deepseek/deepseek-chat-v3.1:free",
     "tencent/hunyuan-a13b-instruct:free",
 ]
+
+AVATAR_DIR = BASE_DIR / "Avatars"
 
 
 @router.get('/api/me/settings')
@@ -130,4 +139,111 @@ async def api_delete_me(request: Request):
     resp = JSONResponse({"ok": True})
     resp.delete_cookie('fastnpc_auth', path='/')
     return resp
+
+
+@router.post("/api/user/avatar")
+async def upload_user_avatar(request: Request, file: UploadFile = File(...)):
+    """上传用户头像"""
+    user = _require_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    uid = int(user['uid'])
+
+    try:
+        # 处理上传的图片
+        avatar_filename = f"user_{uid}_avatar"
+        avatar_url = await process_uploaded_avatar(file, avatar_filename)
+
+        # 更新数据库
+        conn = _get_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET avatar_url=%s WHERE id=%s",
+                (avatar_url, uid)
+            )
+            conn.commit()
+        finally:
+            _return_conn(conn)
+
+        return JSONResponse({"ok": True, "avatar_url": avatar_url})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {e}")
+
+
+@router.delete("/api/user/avatar")
+async def delete_user_avatar(request: Request):
+    """删除用户头像"""
+    user = _require_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    uid = int(user['uid'])
+
+    try:
+        # 删除头像文件
+        pattern = f"user_{uid}_avatar_*.jpg"
+        for f in AVATAR_DIR.glob(pattern):
+            try:
+                os.remove(f)
+                print(f"[INFO] 已删除用户头像文件: {f}")
+            except Exception as e:
+                print(f"[WARN] 删除用户头像文件失败 {f}: {e}")
+
+        # 更新数据库
+        conn = _get_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET avatar_url=%s WHERE id=%s",
+                (None, uid)
+            )
+            conn.commit()
+        finally:
+            _return_conn(conn)
+
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete avatar: {e}")
+
+
+@router.get("/api/user/profile")
+async def get_user_profile(request: Request):
+    """获取用户信息（包括头像）"""
+    user = _require_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    uid = int(user['uid'])
+
+    try:
+        conn = _get_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT id, username, avatar_url, is_admin FROM users WHERE id=%s",
+                (uid,)
+            )
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            if USE_POSTGRESQL:
+                user_data = _row_to_dict(row, cur)
+            else:
+                user_data = dict(row)
+            
+            return JSONResponse({
+                "ok": True,
+                "user": {
+                    "id": user_data['id'],
+                    "username": user_data['username'],
+                    "avatar_url": user_data.get('avatar_url') or '',
+                    "is_admin": bool(user_data.get('is_admin', 0))
+                }
+            })
+        finally:
+            _return_conn(conn)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get profile: {e}")
 

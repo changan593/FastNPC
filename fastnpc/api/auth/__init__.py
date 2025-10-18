@@ -10,6 +10,7 @@ from __future__ import annotations
 # ===== 数据库工具 =====
 from fastnpc.api.auth.db_utils import (
     _get_conn,
+    _return_conn,
     _row_to_dict,
     _column_exists,
     DB_PATH
@@ -109,6 +110,7 @@ def load_character_memories(character_id: int):
 __all__ = [
     # 数据库工具
     '_get_conn',
+    '_return_conn',
     '_row_to_dict',
     '_column_exists',
     'DB_PATH',

@@ -141,7 +141,7 @@
 .group-msg-item .avatar {
   width: 44px;
   height: 44px;
-  border-radius: var(--radius-full);
+  border-radius: 8px;
   background: var(--gradient-purple);
   display: flex;
   align-items: center;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+import { ImageCropper } from '../ImageCropper'
 
 interface SettingsModalProps {
   show: boolean
@@ -25,6 +26,10 @@ export function SettingsModal({ show, onClose }: SettingsModalProps) {
   const [deletePwd, setDeletePwd] = useState('')
   const [userProfile, setUserProfile] = useState<string>('')
   const [maxGroupReplyRounds, setMaxGroupReplyRounds] = useState<string>('3')
+  const [avatarUrl, setAvatarUrl] = useState<string>('')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [showCropper, setShowCropper] = useState(false)
+  const [originalImage, setOriginalImage] = useState<string>('')
 
   useEffect(() => {
     if (show) {
@@ -42,6 +47,12 @@ export function SettingsModal({ show, onClose }: SettingsModalProps) {
       setCtxMaxLtm(s.ctx_max_ltm != null ? String(s.ctx_max_ltm) : '')
       setUserProfile(s.profile || '')
       setMaxGroupReplyRounds(s.max_group_reply_rounds != null ? String(s.max_group_reply_rounds) : '3')
+      
+      // 加载用户头像
+      try {
+        const profileRes = await api.get('/api/user/profile')
+        setAvatarUrl(profileRes.data.user?.avatar_url || '')
+      } catch {}
     } catch {}
   }
 
@@ -86,12 +97,133 @@ export function SettingsModal({ show, onClose }: SettingsModalProps) {
     }
   }
 
+  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件')
+      return
+    }
+
+    // 验证文件大小（10MB）
+    if (file.size > 10 * 1024 * 1024) {
+      alert('图片大小不能超过10MB')
+      return
+    }
+
+    // 读取文件并显示裁剪器
+    const reader = new FileReader()
+    reader.onload = () => {
+      setOriginalImage(reader.result as string)
+      setShowCropper(true)
+    }
+    reader.readAsDataURL(file)
+
+    // 重置input，允许重新选择同一文件
+    e.target.value = ''
+  }
+
+  async function handleCropComplete(croppedBlob: Blob) {
+    setUploadingAvatar(true)
+    setShowCropper(false)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', croppedBlob, 'avatar.jpg')
+
+      const { data } = await api.post('/api/user/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      if (data?.ok && data.avatar_url) {
+        setAvatarUrl(data.avatar_url)
+        alert('头像上传成功')
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || '头像上传失败')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  function handleCropCancel() {
+    setShowCropper(false)
+    setOriginalImage('')
+  }
+
+  async function handleDeleteAvatar() {
+    if (!confirm('确定删除头像吗？')) return
+
+    try {
+      const { data } = await api.delete('/api/user/avatar')
+      if (data?.ok) {
+        setAvatarUrl('')
+        alert('头像已删除')
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || '删除头像失败')
+    }
+  }
+
   if (!show) return null
 
   return (
     <div className="modal">
       <div className="dialog">
         <h3>用户设置</h3>
+        
+        {/* 用户头像 */}
+        <label>
+          用户头像
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: '8px',
+                overflow: 'hidden',
+                backgroundColor: '#f3f4f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid var(--border)',
+              }}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="用户头像"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ fontSize: 40 }}>👤</span>
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarSelect}
+                disabled={uploadingAvatar}
+                style={{ marginBottom: 8 }}
+              />
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+                支持JPG、PNG等格式，最大10MB，上传后可裁剪
+              </div>
+              {avatarUrl && (
+                <button
+                  onClick={handleDeleteAvatar}
+                  style={{ fontSize: 12, padding: '4px 8px' }}
+                >
+                  删除头像
+                </button>
+              )}
+            </div>
+          </div>
+        </label>
+        
         <label>
           默认模型
           <select value={defaultModel} onChange={e => setDefaultModel(e.target.value)}>
@@ -152,6 +284,15 @@ export function SettingsModal({ show, onClose }: SettingsModalProps) {
           </button>
         </div>
       </div>
+
+      {/* 图片裁剪器 */}
+      {showCropper && originalImage && (
+        <ImageCropper
+          image={originalImage}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+        />
+      )}
     </div>
   )
 }

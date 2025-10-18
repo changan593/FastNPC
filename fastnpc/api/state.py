@@ -209,6 +209,35 @@ def _collect_and_structure(task_id: str) -> None:
         # 保存到数据库并清理临时文件
         temp_files_to_cleanup = [raw_path]  # 临时文件稍后清理
         character_created = False  # 标记是否已创建角色
+        
+        # 处理头像（如果有）
+        avatar_saved_path = None
+        try:
+            if user_id and raw_data.get('avatar_url'):
+                from fastnpc.utils.image_utils import download_and_crop_avatar
+                from fastnpc.config import BASE_DIR
+                
+                avatar_dir = BASE_DIR / "Avatars"
+                avatar_filename = f"user_{user_id}_{role}"
+                
+                print(f"[INFO] 下载并处理头像: {raw_data['avatar_url']}")
+                avatar_saved = download_and_crop_avatar(
+                    image_url=raw_data['avatar_url'],
+                    save_dir=avatar_dir.as_posix(),
+                    filename=avatar_filename,
+                    size=(256, 256),
+                    timeout=15
+                )
+                
+                if avatar_saved:
+                    avatar_saved_path = f"/avatars/{avatar_saved}"
+                    print(f"[INFO] 头像保存成功: {avatar_saved_path}")
+                else:
+                    print(f"[WARN] 头像保存失败，将使用默认头像")
+        except Exception as e:
+            print(f"[WARN] 处理头像失败: {e}")
+            avatar_saved_path = None
+        
         try:
             if user_id:
                 # 将爬取的原始数据转换为JSON字符串（百科全文）
@@ -254,7 +283,8 @@ def _collect_and_structure(task_id: str) -> None:
                             user_id=int(user_id),
                             name=role,
                             structured_data=prof,
-                            baike_content=baike_content
+                            baike_content=baike_content,
+                            avatar_url=avatar_saved_path
                         )
                         character_created = True
                         print(f"[INFO] 角色 {role} 保存到数据库成功！")

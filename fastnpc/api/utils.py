@@ -147,11 +147,11 @@ def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]
         # 构建查询（兼容PostgreSQL和SQLite）
         placeholder = "%s" if USE_POSTGRESQL else "?"
         if user_id:
-            query = f"SELECT id, name, updated_at FROM characters WHERE user_id = {placeholder} ORDER BY updated_at DESC"
+            query = f"SELECT id, name, updated_at, avatar_url FROM characters WHERE user_id = {placeholder} ORDER BY updated_at DESC"
             print(f"[DEBUG] Executing query: {query} with user_id={user_id}")
             cur.execute(query, (user_id,))
         else:
-            query = "SELECT id, name, updated_at FROM characters ORDER BY updated_at DESC"
+            query = "SELECT id, name, updated_at, avatar_url FROM characters ORDER BY updated_at DESC"
             print(f"[DEBUG] Executing query: {query}")
             cur.execute(query)
         
@@ -172,8 +172,9 @@ def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]
                 role = row_dict['name']
                 # 确保updated_at是整数
                 updated_at = int(row_dict['updated_at']) if row_dict.get('updated_at') else 0
+                avatar_url = row_dict.get('avatar_url', '')
                 
-                print(f"[DEBUG] Processing character: {role} (id={char_id}, updated_at={updated_at})")
+                print(f"[DEBUG] Processing character: {role} (id={char_id}, updated_at={updated_at}, avatar_url={avatar_url})")
                 
                 # 获取简介预览
                 preview = ""
@@ -195,6 +196,7 @@ def _list_structured_files(user_id: Optional[int] = None) -> List[Dict[str, Any]
                     "path": f"db://characters/{char_id}",
                     "updated_at": updated_at,
                     "preview": preview,
+                    "avatar_url": avatar_url or "",
                 })
             except Exception as e:
                 print(f"[ERROR] 处理角色数据失败: {e}")

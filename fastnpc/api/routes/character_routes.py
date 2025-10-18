@@ -9,11 +9,11 @@ import os
 import shutil
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Request, Form
+from fastapi import APIRouter, BackgroundTasks, Request, Form, UploadFile, File
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from fastnpc.config import CHAR_DIR, TEMPLATES_DIR
+from fastnpc.config import CHAR_DIR, TEMPLATES_DIR, BASE_DIR
 from fastnpc.utils.roles import normalize_role_name
 from fastnpc.api.auth import (
     update_character_structured,
@@ -144,8 +144,10 @@ async def api_copy_character(name: str, request: Request):
     if not full_data:
         return JSONResponse({"error": "not_found"}, status_code=404)
     
-    # 提取百科内容和结构化数据
+    # 提取百科内容、头像URL和结构化数据
     baike_content = full_data.pop('baike_content', None)
+    metadata = full_data.get('_metadata', {})
+    original_avatar = metadata.get('avatar_url', '')
     structured_data = {k: v for k, v in full_data.items() if k != '_metadata'}
     
     # 生成新名称（在现有列表上追加 -副本N）
@@ -163,13 +165,39 @@ async def api_copy_character(name: str, request: Request):
     
     new_name = normalize_role_name(new_name)
     
+    # 复制头像（如果有）
+    new_avatar_url = None
+    if original_avatar:
+        try:
+            from fastnpc.config import BASE_DIR
+            import shutil
+            
+            # 提取原头像文件名
+            orig_filename = original_avatar.split('/')[-1]
+            orig_path = (BASE_DIR / "Avatars" / orig_filename).as_posix()
+            
+            if os.path.exists(orig_path):
+                # 生成新头像文件名
+                new_filename = f"user_{uid}_{new_name}.jpg"
+                new_path = (BASE_DIR / "Avatars" / new_filename).as_posix()
+                
+                # 复制文件
+                shutil.copy2(orig_path, new_path)
+                new_avatar_url = f"/avatars/{new_filename}"
+                print(f"[INFO] 头像已复制: {orig_path} -> {new_path}")
+            else:
+                print(f"[WARN] 原头像文件不存在: {orig_path}")
+        except Exception as e:
+            print(f"[WARN] 复制头像失败: {e}")
+    
     # 保存到数据库
     try:
         save_character_full_data(
             user_id=uid,
             name=new_name,
             structured_data=structured_data,
-            baike_content=baike_content
+            baike_content=baike_content,
+            avatar_url=new_avatar_url or original_avatar
         )
         
         # 清除角色列表缓存，确保前端立即看到新角色

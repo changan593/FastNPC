@@ -6,6 +6,10 @@
   <!-- JSONEditor 资源（CDN） -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.5/dist/jsoneditor.min.css">
   <script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.10.5/dist/jsoneditor.min.js"></script>
+  
+  <!-- Cropper.js 资源（CDN） -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
 
   <div class="grid two">
     <div>
@@ -23,6 +27,80 @@
       </div>
     </div>
     <aside>
+      <!-- 角色头像 -->
+      <div class="card" style="margin-bottom: 1rem;">
+        <h3>角色头像</h3>
+        <div style="text-align: center;">
+          <div id="avatar-preview" style="
+            width: 200px;
+            height: 200px;
+            margin: 1rem auto;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f9fafb;
+            cursor: pointer;
+          " onclick="document.getElementById('avatar-input').click()">
+            <img id="avatar-img" src="" alt="角色头像" style="width: 100%; height: 100%; object-fit: cover; display: none;" />
+            <div id="avatar-placeholder" style="color: #9ca3af; font-size: 48px;">👤</div>
+          </div>
+          <input 
+            type="file" 
+            id="avatar-input" 
+            accept="image/*" 
+            style="display: none;"
+          />
+          <div style="margin-top: 0.5rem;">
+            <button id="btn-upload-avatar" type="button" style="padding: 0.5rem 1rem; font-size: 14px;">上传头像</button>
+            <button id="btn-delete-avatar" type="button" style="padding: 0.5rem 1rem; font-size: 14px; display: none;" class="secondary">删除</button>
+          </div>
+          <div id="avatar-status" class="muted" style="margin-top: 0.5rem; font-size: 12px;"></div>
+          <div class="muted" style="font-size: 12px; margin-top: 0.5rem;">
+            支持 JPG、PNG、GIF 等格式，最大10MB<br/>
+            上传后可裁剪调整
+          </div>
+        </div>
+      </div>
+      
+      <!-- 图片裁剪器模态框 -->
+      <div id="cropperModal" style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        z-index: 10000;
+        flex-direction: column;
+      ">
+        <div style="position: relative; flex: 1; min-height: 0; padding: 20px;">
+          <img id="cropperImage" src="" style="max-width: 100%; max-height: 100%;">
+        </div>
+        <div style="background: #1f2937; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px; color: #fff;">
+            <span style="font-size: 14px; min-width: 60px;">缩放</span>
+            <input type="range" id="cropperZoom" min="0" max="100" step="1" value="0" style="flex: 1;">
+            <span id="cropperZoomValue" style="font-size: 14px; min-width: 40px; text-align: right;">1.0x</span>
+          </div>
+          <div style="color: #9ca3af; font-size: 13px; text-align: center;">
+            拖动图片调整位置，使用滑块缩放
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <button id="cropperCancel" type="button" style="flex: 1; padding: 12px; background: #374151; color: #fff; border: none; border-radius: 8px; font-size: 15px; cursor: pointer;">
+              取消
+            </button>
+            <button id="cropperConfirm" type="button" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;">
+              确认裁剪
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 关键信息 -->
       <div class="card">
         <h3>关键信息</h3>
         <div class="kv"><span>任务目标</span><em id="kv-goal">—</em></div>
@@ -85,6 +163,256 @@
     (function(){
       var el = document.getElementById('chat-session');
       if (el) el.value = '{{ session_id }}';
+    })();
+
+    // ===== 头像管理 =====
+    (function(){
+      const avatarImg = document.getElementById('avatar-img');
+      const avatarPlaceholder = document.getElementById('avatar-placeholder');
+      const avatarInput = document.getElementById('avatar-input');
+      const btnUpload = document.getElementById('btn-upload-avatar');
+      const btnDelete = document.getElementById('btn-delete-avatar');
+      const avatarStatus = document.getElementById('avatar-status');
+      const role = '{{ role }}';
+      let currentAvatarUrl = '';
+      let cropper = null;
+      let pendingFile = null;
+
+      function setAvatarStatus(text, isSuccess) {
+        avatarStatus.textContent = text || '';
+        avatarStatus.style.color = isSuccess ? 'var(--success, #16a34a)' : 'var(--muted, #6b7280)';
+        if (text) {
+          setTimeout(() => setAvatarStatus('', false), 3000);
+        }
+      }
+
+      function displayAvatar(url) {
+        if (url) {
+          currentAvatarUrl = url;
+          avatarImg.src = url;
+          avatarImg.style.display = 'block';
+          avatarPlaceholder.style.display = 'none';
+          btnDelete.style.display = 'inline-block';
+        } else {
+          currentAvatarUrl = '';
+          avatarImg.style.display = 'none';
+          avatarPlaceholder.style.display = 'block';
+          btnDelete.style.display = 'none';
+        }
+      }
+
+      async function loadAvatar() {
+        try {
+          const res = await fetch(`/api/characters/${encodeURIComponent(role)}/structured`);
+          const data = await res.json();
+          if (data && data._metadata && data._metadata.avatar_url) {
+            displayAvatar(data._metadata.avatar_url);
+          }
+        } catch(e) {
+          console.error('加载头像失败:', e);
+        }
+      }
+
+      function showCropper(file) {
+        if (!file) return;
+        
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+          setAvatarStatus('只支持图片文件', false);
+          return;
+        }
+
+        // 验证文件大小（10MB）
+        if (file.size > 10 * 1024 * 1024) {
+          setAvatarStatus('文件大小不能超过10MB', false);
+          return;
+        }
+
+        pendingFile = file;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const cropperImage = document.getElementById('cropperImage');
+          const cropperModal = document.getElementById('cropperModal');
+          
+          cropperImage.src = e.target.result;
+          cropperModal.style.display = 'flex';
+          
+          // 销毁旧的cropper
+          if (cropper) {
+            cropper.destroy();
+          }
+          
+          // 创建新的cropper
+          cropper = new Cropper(cropperImage, {
+            aspectRatio: 1,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 1,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+          });
+          
+          // 缩放滑块
+          const zoomSlider = document.getElementById('cropperZoom');
+          const zoomValue = document.getElementById('cropperZoomValue');
+          
+          zoomSlider.oninput = function() {
+            const zoomRatio = this.value / 100 * 2; // 0-2倍缩放
+            cropper.zoomTo(zoomRatio);
+            zoomValue.textContent = (1 + zoomRatio).toFixed(1) + 'x';
+          };
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function hideCropper() {
+        const cropperModal = document.getElementById('cropperModal');
+        cropperModal.style.display = 'none';
+        if (cropper) {
+          cropper.destroy();
+          cropper = null;
+        }
+        pendingFile = null;
+        // 重置文件输入
+        const avatarInput = document.getElementById('avatar-input');
+        avatarInput.value = '';
+      }
+
+      async function uploadCroppedImage() {
+        if (!cropper) return;
+        
+        setAvatarStatus('处理中...', false);
+        
+        // 获取裁剪后的canvas
+        const canvas = cropper.getCroppedCanvas({
+          width: 512,
+          height: 512,
+          imageSmoothingEnabled: true,
+          imageSmoothingQuality: 'high',
+        });
+        
+        // 转换为blob
+        canvas.toBlob(async function(blob) {
+          hideCropper();
+          
+          if (!blob) {
+            setAvatarStatus('处理图片失败', false);
+            return;
+          }
+          
+          setAvatarStatus('上传中...', false);
+          const formData = new FormData();
+          formData.append('file', blob, 'avatar.jpg');
+
+          try {
+            const res = await fetch(`/api/characters/${encodeURIComponent(role)}/avatar`, {
+              method: 'POST',
+              body: formData
+            });
+            
+            const data = await res.json();
+            
+            if (res.ok && data.ok) {
+              displayAvatar(data.avatar_url + '?t=' + Date.now());
+              setAvatarStatus('上传成功！', true);
+              
+              // 刷新列表
+              if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage({ type: 'avatar_updated', role: role }, '*');
+              }
+            } else {
+              setAvatarStatus(data.error || '上传失败', false);
+            }
+          } catch(e) {
+            console.error('上传头像失败:', e);
+            setAvatarStatus('上传失败: ' + e.message, false);
+          }
+        }, 'image/jpeg', 0.92);
+      }
+
+      async function deleteAvatar() {
+        if (!confirm('确定要删除头像吗？')) return;
+
+        setAvatarStatus('删除中...', false);
+
+        try {
+          const res = await fetch(`/api/characters/${encodeURIComponent(role)}/avatar`, {
+            method: 'DELETE'
+          });
+          
+          const data = await res.json();
+          
+          if (res.ok && data.ok) {
+            displayAvatar('');
+            setAvatarStatus('已删除', true);
+            
+            // 刷新列表
+            if (window.opener && window.opener.postMessage) {
+              window.opener.postMessage({ type: 'avatar_updated', role: role }, '*');
+            }
+          } else {
+            setAvatarStatus(data.error || '删除失败', false);
+          }
+        } catch(e) {
+          console.error('删除头像失败:', e);
+          setAvatarStatus('删除失败: ' + e.message, false);
+        }
+      }
+
+      // 事件监听
+      avatarInput.addEventListener('change', function(e) {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+          showCropper(file);
+        }
+      });
+      
+      // 裁剪器按钮事件
+      document.getElementById('cropperCancel').addEventListener('click', hideCropper);
+      document.getElementById('cropperConfirm').addEventListener('click', uploadCroppedImage);
+
+      btnUpload.addEventListener('click', function() {
+        avatarInput.click();
+      });
+
+      btnDelete.addEventListener('click', deleteAvatar);
+
+      // 支持拖拽上传
+      const avatarPreview = document.getElementById('avatar-preview');
+      
+      avatarPreview.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        avatarPreview.style.borderColor = '#3b82f6';
+        avatarPreview.style.background = '#eff6ff';
+      });
+
+      avatarPreview.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        avatarPreview.style.borderColor = '#e5e7eb';
+        avatarPreview.style.background = '#f9fafb';
+      });
+
+      avatarPreview.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        avatarPreview.style.borderColor = '#e5e7eb';
+        avatarPreview.style.background = '#f9fafb';
+
+        const files = e.dataTransfer.files;
+        if (files && files[0]) {
+          uploadAvatar(files[0]);
+        }
+      });
+
+      // 初始加载头像
+      loadAvatar();
     })();
 
     // 初始化 JSONEditor

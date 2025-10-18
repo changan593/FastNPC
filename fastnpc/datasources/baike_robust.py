@@ -252,7 +252,41 @@ def _parse_html_content(page, keyword: str, url: str) -> Dict[str, Any]:
     # 提取章节（多种策略）
     sections = _extract_sections_multi_strategy(page)
     
-    return {
+    # 提取头像图片URL
+    avatar_url = None
+    try:
+        avatar_selectors = [
+            '#side div.abstractAlbum_jhNeu img',
+            'div.abstractAlbum_jhNeu img',
+            'div.summary-pic img',
+            'div.lemma-summary img',
+            '#side img',
+        ]
+        for selector in avatar_selectors:
+            try:
+                img_elem = page.locator(selector).first
+                if img_elem.count() > 0:
+                    avatar_url = img_elem.get_attribute('src')
+                    if not avatar_url:
+                        avatar_url = img_elem.get_attribute('data-src')
+                    if avatar_url:
+                        # 处理相对URL
+                        if avatar_url.startswith('//'):
+                            avatar_url = 'https:' + avatar_url
+                        elif avatar_url.startswith('/'):
+                            avatar_url = 'https://baike.baidu.com' + avatar_url
+                        
+                        # 过滤图标
+                        if 'icon' not in avatar_url.lower() and 'logo' not in avatar_url.lower():
+                            print(f"[INFO] 找到头像URL: {avatar_url}")
+                            break
+                        avatar_url = None
+            except:
+                continue
+    except Exception as e:
+        print(f"[WARN] 提取头像URL失败: {e}")
+    
+    result = {
         'keyword': keyword,
         'url': url,
         'title': title,
@@ -262,6 +296,11 @@ def _parse_html_content(page, keyword: str, url: str) -> Dict[str, Any]:
         'catalog': [],
         'references': [],
     }
+    
+    if avatar_url:
+        result['avatar_url'] = avatar_url
+    
+    return result
 
 
 def _extract_sections_multi_strategy(page) -> List[Dict[str, Any]]:

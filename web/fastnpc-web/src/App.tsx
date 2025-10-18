@@ -94,6 +94,7 @@ function AppContent() {
   const [showFeedback, setShowFeedback] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [maxGroupReplyRounds, setMaxGroupReplyRounds] = useState<string>('3')
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
 
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
   const prevActiveRoleRef = useRef<string>('')
@@ -120,10 +121,16 @@ function AppContent() {
           setActiveType('character')
         }
 
-      // 加载用户设置
+      // 加载用户设置和头像
       const { data: settings } = await api.get('/api/me/settings')
       const s = settings.settings || {}
       setMaxGroupReplyRounds(s.max_group_reply_rounds != null ? String(s.max_group_reply_rounds) : '3')
+      
+      // 加载用户头像
+      try {
+        const { data: profile } = await api.get('/api/user/profile')
+        setUserAvatarUrl(profile.user?.avatar_url || '')
+      } catch {}
     } catch (e: any) {
         if (e?.response?.status === 401) {
         // 未登录，清空所有状态
@@ -332,9 +339,36 @@ function AppContent() {
             {groupMessages.map((msg, idx) => {
               const text = String(msg.content || '')
               const parts = text ? text.match(/[^。！]+[。！]|[^。！]+/g) || [''] : ['']
+              
+              // 获取角色头像（如果是角色消息）
+              const senderChar = msg.sender_type === 'character' 
+                ? characters.find(c => c.role === msg.sender_name || c.role.includes(msg.sender_name.split('_')[0]))
+                : null
+              const avatarUrl = senderChar?.avatar_url
+              
               return (
                 <div key={idx} className={`group-msg-item ${msg.sender_type}`}>
-                  <div className="avatar">{msg.sender_type === 'user' ? '👤' : '🎭'}</div>
+                  <div className="avatar">
+                    {msg.sender_type === 'user' ? (
+                      userAvatarUrl ? (
+                        <img 
+                          src={userAvatarUrl} 
+                          alt={user?.username || 'User'}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                        />
+                      ) : (
+                        '👤'
+                      )
+                    ) : avatarUrl ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt={msg.sender_name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                      />
+                    ) : (
+                      '🎭'
+                    )}
+                  </div>
                   <div className="msg-right">
                     <div className="sender-name">{msg.sender_name}</div>
                     {parts.map((s, j) => (
@@ -425,9 +459,33 @@ function AppContent() {
               const senderType = m.role === 'user' ? 'user' : 'character'
                 const senderName = m.role === 'user' ? user?.username || 'User' : activeRole
               
+              // 获取角色头像
+              const currentChar = characters.find(c => c.role === activeRole)
+              const avatarUrl = currentChar?.avatar_url
+              
               return (
                 <div key={i} className={`group-msg-item ${senderType}`}>
-                    <div className="avatar">{m.role === 'user' ? '👤' : '🎭'}</div>
+                    <div className="avatar">
+                      {m.role === 'user' ? (
+                        userAvatarUrl ? (
+                          <img 
+                            src={userAvatarUrl} 
+                            alt={user?.username || 'User'}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                          />
+                        ) : (
+                          '👤'
+                        )
+                      ) : avatarUrl ? (
+                        <img 
+                          src={avatarUrl} 
+                          alt={activeRole}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+                        />
+                      ) : (
+                        '🎭'
+                      )}
+                    </div>
                   <div className="msg-right">
                     <div className="sender-name">{senderName}</div>
                     {parts.map((s, j) => (
@@ -496,6 +554,7 @@ function AppContent() {
           activeGroupId={activeGroupId}
           charIntro={charIntro}
           groupMemberBriefs={groupMemberBriefs}
+          characters={characters}
           onManageCharacter={() => setShowManageChar(true)}
           onManageGroup={() => setShowManageGroup(true)}
           onShowFeedback={() => setShowFeedback(true)}

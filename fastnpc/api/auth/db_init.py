@@ -23,7 +23,8 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 created_at BIGINT NOT NULL,
-                is_admin INT NOT NULL DEFAULT 0
+                is_admin INT NOT NULL DEFAULT 0,
+                avatar_url TEXT
             )
             """
         )
@@ -37,6 +38,7 @@ def init_db():
                 source TEXT,
                 structured_json TEXT,
                 baike_content TEXT,
+                avatar_url TEXT,
                 created_at BIGINT NOT NULL,
                 updated_at BIGINT NOT NULL,
                 UNIQUE(user_id, name),
@@ -67,7 +69,8 @@ def init_db():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                is_admin INTEGER NOT NULL DEFAULT 0
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                avatar_url TEXT
             )
             """
         )
@@ -81,6 +84,7 @@ def init_db():
                 source TEXT,
                 structured_json TEXT,
                 baike_content TEXT,
+                avatar_url TEXT,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 UNIQUE(user_id, name),
@@ -216,6 +220,15 @@ def init_db():
             conn.commit()
     except Exception:
         pass
+    
+    # 为 characters 表添加 avatar_url 字段（角色头像）
+    try:
+        if not _column_exists(cur, 'characters', 'avatar_url'):
+            cur.execute("ALTER TABLE characters ADD COLUMN avatar_url TEXT")
+            conn.commit()
+            print("[INFO] 已为characters表添加avatar_url字段")
+    except Exception as e:
+        print(f"[WARN] 添加avatar_url字段失败（可能已存在）: {e}")
     
     # 群聊表
     if USE_POSTGRESQL:
@@ -737,6 +750,15 @@ def init_db():
         conn.commit()
     except Exception as e:
         print(f"[WARN] 添加字段失败: {e}")
+    
+    # 为 users 表添加 avatar_url 字段（用户头像）
+    try:
+        if not _column_exists(cur, 'users', 'avatar_url'):
+            cur.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+            conn.commit()
+            print("[INFO] 已为users表添加avatar_url字段")
+    except Exception as e:
+        print(f"[WARN] 添加users.avatar_url字段失败（可能已存在）: {e}")
     conn.commit()
     _return_conn(conn)
 

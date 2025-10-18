@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 # 注意：_get_conn, _row_to_dict, USE_POSTGRESQL 作为参数传入，避免循环导入
 
 
-def save_character_full_data(user_id: int, name: str, structured_data: Dict[str, Any], baike_content: str = None, _get_conn=None, USE_POSTGRESQL=None) -> int:
+def save_character_full_data(user_id: int, name: str, structured_data: Dict[str, Any], baike_content: str = None, avatar_url: str = None, _get_conn=None, USE_POSTGRESQL=None) -> int:
     """保存完整角色数据到所有相关表
     
     Args:
@@ -21,6 +21,7 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
         name: 角色名称
         structured_data: 结构化数据（字典格式）
         baike_content: 百科全文（JSON字符串）
+        avatar_url: 头像URL路径
         _get_conn: 数据库连接函数（内部使用）
         USE_POSTGRESQL: 是否使用PostgreSQL（内部使用）
     
@@ -51,23 +52,29 @@ def save_character_full_data(user_id: int, name: str, structured_data: Dict[str,
         if row:
             # 更新现有角色
             character_id = int(_row_to_dict(row, cur)['id']) if USE_POSTGRESQL else int(row['id'])
-            cur.execute(
-                "UPDATE characters SET baike_content=%s, updated_at=%s WHERE id=%s",
-                (baike_content, now, character_id)
-            )
+            if avatar_url:
+                cur.execute(
+                    "UPDATE characters SET baike_content=%s, avatar_url=%s, updated_at=%s WHERE id=%s",
+                    (baike_content, avatar_url, now, character_id)
+                )
+            else:
+                cur.execute(
+                    "UPDATE characters SET baike_content=%s, updated_at=%s WHERE id=%s",
+                    (baike_content, now, character_id)
+                )
         else:
             # 创建新角色
             if USE_POSTGRESQL:
                 cur.execute(
-                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
-                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, now, now)
+                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, avatar_url, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, avatar_url, now, now)
                 )
                 character_id = int(cur.fetchone()[0])
                 conn.commit()  # 立即提交，确保后续外键关联能找到这条记录
             else:
                 cur.execute(
-                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, now, now)
+                    "INSERT INTO characters(user_id, name, model, source, structured_json, baike_content, avatar_url, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (user_id, name, '', '', json.dumps(structured_data, ensure_ascii=False), baike_content, avatar_url, now, now)
                 )
                 conn.commit()
                 character_id = int(cur.lastrowid)
@@ -248,7 +255,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
         cur = conn.cursor()
         
         # 1. 加载主表数据
-        cur.execute("SELECT id, user_id, name, model, source, baike_content, created_at, updated_at FROM characters WHERE id=%s", (character_id,))
+        cur.execute("SELECT id, user_id, name, model, source, baike_content, avatar_url, created_at, updated_at FROM characters WHERE id=%s", (character_id,))
         main_row = cur.fetchone()
         if not main_row:
             return None
@@ -262,6 +269,7 @@ def load_character_full_data_impl(_get_conn, _row_to_dict, USE_POSTGRESQL, chara
                 "name": main_data['name'],
                 "model": main_data['model'],
                 "source": main_data['source'],
+                "avatar_url": main_data.get('avatar_url'),
                 "created_at": main_data['created_at'],
                 "updated_at": main_data['updated_at'],
             },
