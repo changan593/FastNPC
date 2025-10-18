@@ -118,15 +118,31 @@ export function Sidebar({
                 </div>
               ) : null}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="name">
-                  {item.type === 'character' ? (
-                    item.data.avatar_url ? (
-                      item.name
+                <div className="name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.type === 'character' ? (
+                      item.data.avatar_url ? (
+                        item.name
+                      ) : (
+                        <><span>👤 </span>{item.name}</>
+                      )
                     ) : (
-                      <><span>👤 </span>{item.name}</>
-                    )
-                  ) : (
-                    <><span>💬 </span>{item.name}</>
+                      <><span>💬 </span>{item.name}</>
+                    )}
+                  </span>
+                  {item.data.is_test_case && (
+                    <span 
+                      title="测试用例" 
+                      style={{
+                        fontSize: '18px',
+                        lineHeight: 1,
+                        color: '#fbbf24',
+                        textShadow: '0 0 2px rgba(251, 191, 36, 0.5)',
+                        flexShrink: 0
+                      }}
+                    >
+                      ★
+                    </span>
                   )}
                 </div>
                 <div className="time">{new Date(item.updated_at * 1000).toLocaleDateString()}</div>

@@ -226,3 +226,78 @@ def get_character_detail(user_id: int, character_id: int) -> Optional[Dict[str, 
     finally:
         _return_conn(conn)
 
+
+def mark_character_as_test_case(user_id: int, character_id: int, is_test_case: bool) -> Tuple[bool, str]:
+    """标记/取消标记角色为测试用例"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        # 验证角色属于该用户
+        cur.execute("SELECT id, name FROM characters WHERE id=%s AND user_id=%s", (character_id, user_id))
+        row = cur.fetchone()
+        if not row:
+            return False, '角色不存在或无权限'
+        
+        row_dict = _row_to_dict(row, cur)
+        name = row_dict['name']
+        
+        # 更新标记（PostgreSQL 使用 boolean，SQLite 使用 integer）
+        value = is_test_case if USE_POSTGRESQL else (1 if is_test_case else 0)
+        cur.execute("UPDATE characters SET is_test_case=%s WHERE id=%s", (value, character_id))
+        conn.commit()
+        
+        # 清除缓存
+        cache = get_redis_cache()
+        cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
+        cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+        
+        return True, 'ok'
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] 标记测试角色失败: {e}")
+        return False, str(e)
+    finally:
+        _return_conn(conn)
+
+
+def reset_character_state(user_id: int, character_id: int) -> Tuple[bool, str, int]:
+    """重置角色状态（清空对话历史和记忆）
+    
+    Returns:
+        (success, message, deleted_count)
+    """
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        # 验证角色属于该用户
+        cur.execute("SELECT id, name FROM characters WHERE id=%s AND user_id=%s", (character_id, user_id))
+        row = cur.fetchone()
+        if not row:
+            return False, '角色不存在或无权限', 0
+        
+        row_dict = _row_to_dict(row, cur)
+        name = row_dict['name']
+        
+        # 删除对话消息
+        cur.execute("DELETE FROM messages WHERE user_id=%s AND character_id=%s", (user_id, character_id))
+        message_count = cur.rowcount
+        
+        # 删除记忆
+        cur.execute("DELETE FROM character_memories WHERE character_id=%s", (character_id,))
+        memory_count = cur.rowcount
+        
+        conn.commit()
+        
+        # 清除缓存
+        cache = get_redis_cache()
+        cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
+        
+        total_deleted = message_count + memory_count
+        return True, f'已清空 {message_count} 条消息和 {memory_count} 条记忆', total_deleted
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] 重置角色状态失败: {e}")
+        return False, str(e), 0
+    finally:
+        _return_conn(conn)
+

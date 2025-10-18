@@ -1062,3 +1062,53 @@ async def get_group_message_prompt(group_id: int, msg_id: int, request: Request)
         _return_conn(conn)
 
 
+@router.post("/api/groups/{group_id}/toggle-test-marker")
+async def toggle_group_test_marker(group_id: int, request: Request):
+    """切换群聊的测试用例标记"""
+    from fastnpc.api.utils import _require_admin
+    
+    user = _require_admin(request)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    
+    from fastnpc.api.auth.db_utils import _get_conn, _return_conn
+    
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        
+        # 先检查群聊是否存在
+        placeholder = "%s" if USE_POSTGRESQL else "?"
+        cur.execute(f"SELECT is_test_case FROM group_chats WHERE id = {placeholder}", (group_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            return JSONResponse({"error": "群聊不存在"}, status_code=404)
+        
+        # 切换状态
+        current_state = bool(row[0])
+        new_state = not current_state
+        
+        cur.execute(
+            f"UPDATE group_chats SET is_test_case = {placeholder} WHERE id = {placeholder}",
+            (new_state, group_id)
+        )
+        conn.commit()
+        
+        print(f"[INFO] 群聊 {group_id} 测试标记已{'启用' if new_state else '禁用'}")
+        
+        return {
+            "ok": True,
+            "is_test_case": new_state
+        }
+    
+    except Exception as e:
+        print(f"[ERROR] 切换测试标记失败: {e}")
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+        return JSONResponse({"error": f"操作失败: {e}"}, status_code=500)
+    
+    finally:
+        _return_conn(conn)
+

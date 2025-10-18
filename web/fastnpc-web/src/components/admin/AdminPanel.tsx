@@ -76,7 +76,7 @@ export function AdminPanel({ onOpenPromptManagement }: AdminPanelProps = {}) {
           <input type="text" placeholder="搜索..." value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} className="admin-search" />
           {onOpenPromptManagement && (
             <button onClick={onOpenPromptManagement} className="settings" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
-              🎯 提示词管理
+              🎯 提示词与测试管理
             </button>
           )}
           <button onClick={refreshAdminData} className="settings">

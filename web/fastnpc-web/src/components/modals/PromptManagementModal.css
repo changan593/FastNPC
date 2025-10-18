@@ -38,6 +38,38 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* 标签页按钮 */
+.tab-buttons {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #667eea;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 .prompt-management-body {
   display: flex;
   flex: 1;

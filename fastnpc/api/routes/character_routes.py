@@ -423,3 +423,46 @@ async def api_put_memories(role: str, request: Request):
         print(f"[ERROR] 保存记忆失败: {e}")
         return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
 
+
+@router.post("/api/characters/{persona_id}/toggle-test-marker")
+async def toggle_character_test_marker(persona_id: str, request: Request):
+    """切换角色的测试用例标记"""
+    user = _require_user(request)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    
+    try:
+        # 构建 structured.json 路径
+        structured_path = _structured_path_for_role(user.get('uid'), persona_id)
+        
+        if not os.path.exists(structured_path):
+            return JSONResponse({"error": "角色不存在"}, status_code=404)
+        
+        # 读取现有数据
+        with open(structured_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        # 切换 is_test_case 标记
+        metadata = data.get('metadata', {})
+        current_state = metadata.get('is_test_case', False)
+        new_state = not current_state
+        metadata['is_test_case'] = new_state
+        data['metadata'] = metadata
+        
+        # 保存回文件
+        with open(structured_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        print(f"[INFO] 角色 {persona_id} 测试标记已{'启用' if new_state else '禁用'}")
+        
+        return {
+            "ok": True,
+            "is_test_case": new_state
+        }
+    
+    except Exception as e:
+        print(f"[ERROR] 切换测试标记失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"error": f"操作失败: {e}"}, status_code=500)
+

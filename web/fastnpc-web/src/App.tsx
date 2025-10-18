@@ -453,7 +453,9 @@ function AppContent() {
         <div className="chat-body" ref={chatBodyRef}>
             {/* 管理员视图或普通聊天视图 */}
           {adminView ? (
-              <AdminPanel onOpenPromptManagement={() => setShowPromptManagement(true)} />
+              <AdminPanel 
+                onOpenPromptManagement={() => setShowPromptManagement(true)}
+              />
             ) : (
               messages.map((m, i) => {
               const text = String(m.content || '')

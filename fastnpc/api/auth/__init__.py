@@ -47,7 +47,9 @@ from fastnpc.api.auth.characters import (
     delete_character,
     list_characters,
     update_character_structured,
-    get_character_detail
+    get_character_detail,
+    mark_character_as_test_case,
+    reset_character_state
 )
 
 # ===== 消息管理 =====
@@ -70,7 +72,9 @@ from fastnpc.api.auth.groups import (
     list_group_messages,
     delete_group_chat,
     get_group_chat_detail,
-    remove_group_member
+    remove_group_member,
+    mark_group_as_test_case,
+    reset_group_state
 )
 
 # ===== 反馈系统 =====
@@ -142,6 +146,8 @@ __all__ = [
     'list_characters',
     'update_character_structured',
     'get_character_detail',
+    'mark_character_as_test_case',
+    'reset_character_state',
     
     # 消息管理
     'add_message',
@@ -161,6 +167,8 @@ __all__ = [
     'delete_group_chat',
     'get_group_chat_detail',
     'remove_group_member',
+    'mark_group_as_test_case',
+    'reset_group_state',
     
     # 反馈系统
     'create_feedback',

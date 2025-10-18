@@ -27,6 +27,7 @@ from fastnpc.api.routes.feedback_routes import router as feedback_router
 from fastnpc.api.routes.cache_routes import router as cache_router
 from fastnpc.api.routes.avatar_routes import router as avatar_router
 from fastnpc.api.routes.prompt_routes import router as prompt_router
+from fastnpc.api.routes.test_case_routes import router as test_case_router
 
 
 # CHAR_DIR不再使用，所有数据存储在PostgreSQL数据库中
@@ -93,6 +94,7 @@ app.include_router(group_router)     # 群聊路由
 app.include_router(feedback_router)  # 反馈路由
 app.include_router(cache_router)     # 缓存管理路由
 app.include_router(prompt_router)    # 提示词管理路由
+app.include_router(test_case_router) # 测试用例管理路由
 
 
 def create_app() -> FastAPI:

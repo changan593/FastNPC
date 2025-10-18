@@ -4,6 +4,7 @@ export interface CharacterItem {
   updated_at: number;
   preview?: string;
   avatar_url?: string;
+  is_test_case?: boolean;
 }
 
 export interface Message {
@@ -45,6 +46,7 @@ export interface GroupItem {
   created_at: number;
   updated_at: number;
   member_count?: number;
+  is_test_case?: boolean;
 }
 
 export interface GroupMessage {
@@ -80,5 +82,40 @@ export interface Feedback {
   admin_reply?: string;
   created_at: number;
   updated_at: number;
+}
+
+export interface TestCase {
+  id: number;
+  version: string;
+  category: string;
+  prompt_category?: string;
+  prompt_sub_category?: string;
+  target_type: string;
+  target_id: string;
+  name: string;
+  description?: string;
+  test_content: any;
+  expected_behavior?: string;
+  test_config?: any;
+  is_active: number;
+  created_by?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface TestExecution {
+  id: number;
+  test_case_id: number;
+  prompt_template_id?: number;
+  execution_time: number;
+  duration_ms?: number;
+  llm_response?: string;
+  evaluation_result?: any;
+  passed?: boolean;
+  score?: number;
+  evaluator_prompt_id?: number;
+  evaluation_feedback?: string;
+  metadata?: any;
+  executed_by?: number;
 }
 

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 from fastnpc.api.auth.db_utils import _get_conn, _row_to_dict, _return_conn
 from fastnpc.config import USE_POSTGRESQL
@@ -51,11 +51,12 @@ def list_group_chats(user_id: int) -> list[Dict[str, Any]]:
                 gc.name, 
                 gc.created_at, 
                 gc.updated_at,
+                gc.is_test_case,
                 COUNT(gm.id) as member_count
             FROM group_chats gc
             LEFT JOIN group_members gm ON gc.id = gm.group_id
             WHERE gc.user_id=%s 
-            GROUP BY gc.id, gc.name, gc.created_at, gc.updated_at
+            GROUP BY gc.id, gc.name, gc.created_at, gc.updated_at, gc.is_test_case
             ORDER BY gc.updated_at DESC
             """,
             (user_id,)
@@ -231,6 +232,71 @@ def remove_group_member(group_id: int, member_name: str) -> None:
         cur = conn.cursor()
         cur.execute("DELETE FROM group_members WHERE group_id=%s AND member_name=%s", (group_id, member_name))
         conn.commit()
+    finally:
+        _return_conn(conn)
+
+
+def mark_group_as_test_case(user_id: int, group_id: int, is_test_case: bool) -> Tuple[bool, str]:
+    """标记/取消标记群聊为测试用例"""
+    from fastnpc.config import USE_POSTGRESQL
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        # 验证群聊属于该用户
+        cur.execute("SELECT id, name FROM group_chats WHERE id=%s AND user_id=%s", (group_id, user_id))
+        row = cur.fetchone()
+        if not row:
+            return False, '群聊不存在或无权限'
+        
+        # 更新标记（PostgreSQL 使用 boolean，SQLite 使用 integer）
+        value = is_test_case if USE_POSTGRESQL else (1 if is_test_case else 0)
+        cur.execute("UPDATE group_chats SET is_test_case=%s WHERE id=%s", (value, group_id))
+        conn.commit()
+        
+        return True, 'ok'
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] 标记测试群聊失败: {e}")
+        return False, str(e)
+    finally:
+        _return_conn(conn)
+
+
+def reset_group_state(user_id: int, group_id: int) -> Tuple[bool, str, int]:
+    """重置群聊状态（清空群聊消息和群聊记忆）
+    
+    Returns:
+        (success, message, deleted_count)
+    """
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        # 验证群聊属于该用户
+        cur.execute("SELECT id, name FROM group_chats WHERE id=%s AND user_id=%s", (group_id, user_id))
+        row = cur.fetchone()
+        if not row:
+            return False, '群聊不存在或无权限', 0
+        
+        # 删除群聊消息
+        cur.execute("DELETE FROM group_messages WHERE group_id=%s", (group_id,))
+        message_count = cur.rowcount
+        
+        # 删除群聊记忆（假设有group_memories表，如果没有可以忽略）
+        try:
+            cur.execute("DELETE FROM group_memories WHERE group_id=%s", (group_id,))
+            memory_count = cur.rowcount
+        except Exception:
+            # 如果group_memories表不存在，忽略
+            memory_count = 0
+        
+        conn.commit()
+        
+        total_deleted = message_count + memory_count
+        return True, f'已清空 {message_count} 条消息和 {memory_count} 条记忆', total_deleted
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] 重置群聊状态失败: {e}")
+        return False, str(e), 0
     finally:
         _return_conn(conn)
 

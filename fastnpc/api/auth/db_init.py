@@ -230,6 +230,18 @@ def init_db():
     except Exception as e:
         print(f"[WARN] 添加avatar_url字段失败（可能已存在）: {e}")
     
+    # 为 characters 表添加 is_test_case 字段（标记测试角色）
+    try:
+        if not _column_exists(cur, 'characters', 'is_test_case'):
+            if USE_POSTGRESQL:
+                cur.execute("ALTER TABLE characters ADD COLUMN is_test_case INT DEFAULT 0")
+            else:
+                cur.execute("ALTER TABLE characters ADD COLUMN is_test_case INTEGER DEFAULT 0")
+            conn.commit()
+            print("[INFO] 已为characters表添加is_test_case字段")
+    except Exception as e:
+        print(f"[WARN] 添加is_test_case字段失败（可能已存在）: {e}")
+    
     # 群聊表
     if USE_POSTGRESQL:
         cur.execute(
@@ -759,6 +771,18 @@ def init_db():
             print("[INFO] 已为users表添加avatar_url字段")
     except Exception as e:
         print(f"[WARN] 添加users.avatar_url字段失败（可能已存在）: {e}")
+    
+    # 为 group_chats 表添加 is_test_case 字段（标记测试群聊）
+    try:
+        if not _column_exists(cur, 'group_chats', 'is_test_case'):
+            if USE_POSTGRESQL:
+                cur.execute("ALTER TABLE group_chats ADD COLUMN is_test_case INT DEFAULT 0")
+            else:
+                cur.execute("ALTER TABLE group_chats ADD COLUMN is_test_case INTEGER DEFAULT 0")
+            conn.commit()
+            print("[INFO] 已为group_chats表添加is_test_case字段")
+    except Exception as e:
+        print(f"[WARN] 添加group_chats.is_test_case字段失败（可能已存在）: {e}")
     
     # ========== 提示词管理系统表 ==========
     # 提示词模板表
