@@ -225,6 +225,11 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
     } finally {
       setCreating(false)
       setCurrentTaskId('')
+      // 清空同名词选择状态和选项列表，避免影响下一次创建
+      setPolyChoiceIdx(null)
+      setPolyChoiceHref('')
+      setPolyFilter('')
+      setPolyOptions([])  // 清空旧的同名词列表
     }
   }
   

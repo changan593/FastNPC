@@ -113,12 +113,35 @@ def _collect_and_structure(task_id: str) -> None:
         _set_task(task_id, progress=10, message=f"正在从 {source} 抓取数据…")
         role = normalize_role_name(role)
         print(f"[INFO] 角色名（规范化）: {role}")
+        print(f"[INFO] chosen_href参数: {chosen_href}")
         print(f"[INFO] 调用 pipeline_collect...")
         raw_data, raw_path = pipeline_collect(role, source, choice_index=choice_index, filter_text=filter_text, chosen_href=chosen_href)
         print(f"[INFO] 数据抓取完成")
         print(f"[INFO] raw_path: {raw_path}")
         print(f"[INFO] raw_data title: {raw_data.get('title', 'N/A')}")
         print(f"[INFO] raw_data keyword: {raw_data.get('keyword', 'N/A')}")
+        
+        # 验证 title 和 keyword 的一致性（防止浏览器缓存导致的数据污染）
+        raw_title = raw_data.get('title', '')
+        raw_keyword = raw_data.get('keyword', '')
+        # 提取角色名的核心部分（去掉时间戳）
+        import re
+        core_role = re.sub(r'\d{12}$', '', role).strip()
+        
+        # 检查 title 或 keyword 是否包含角色名的核心部分
+        title_match = core_role in raw_title if raw_title else False
+        keyword_match = core_role in raw_keyword if raw_keyword else False
+        
+        if not title_match and not keyword_match:
+            print(f"[WARNING] ⚠️  数据验证失败：爬取的内容与目标角色不匹配！")
+            print(f"[WARNING] 目标角色: {core_role}")
+            print(f"[WARNING] 爬取到的 title: {raw_title}")
+            print(f"[WARNING] 爬取到的 keyword: {raw_keyword}")
+            print(f"[WARNING] 这可能是浏览器缓存导致的，建议用户重试")
+            # 不强制中断，但记录警告
+        elif not title_match and keyword_match:
+            print(f"[WARNING] ⚠️  title 不匹配但 keyword 匹配，可能存在浏览器缓存问题")
+            print(f"[WARNING] title: {raw_title}, keyword: {raw_keyword}, 目标: {core_role}")
         
         # 检查取消标志
         if t.cancelled:

@@ -37,6 +37,7 @@ function AppContent() {
     polyChoiceIdx,
     setPolyChoiceIdx,
     setPolyChoiceHref,
+    setPolyFilter,
     showPoly,
     setShowPoly,
     polyOptions,
@@ -278,7 +279,14 @@ function AppContent() {
         setActiveRole={setActiveRole}
         activeGroupId={activeGroupId}
         setActiveGroupId={setActiveGroupId}
-        onCreateCharacter={() => setShowCreate(true)}
+        onCreateCharacter={() => {
+          // 清空同名词选择状态和选项列表
+          setPolyChoiceIdx(null)
+          setPolyChoiceHref('')
+          setPolyFilter('')
+          setPolyOptions([])  // 清空旧的同名词列表
+          setShowCreate(true)
+        }}
         onCreateGroup={() => setShowCreateGroup(true)}
       />
 

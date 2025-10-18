@@ -402,16 +402,42 @@ def _extract_options_from_baidu_web(keyword: str, session: requests.Session, lim
 
 
 def _extract_options_dynamic_with_playwright(keyword: str, timeout_ms: int = 12000) -> List[Dict[str, str]]:
-    """使用无头浏览器点击“同名/多义”面板后抓取候选（与 Test 样例一致的选择器）。"""
+    """使用无头浏览器点击"同名/多义"面板后抓取候选（与 Test 样例一致的选择器）。"""
     results: List[Dict[str, str]] = []
     if not _HAS_PLAYWRIGHT:
         return results
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page(user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-dev-shm-usage',
+                    '--no-sandbox',
+                ]
+            )
+            # 创建上下文，强制禁用缓存
+            context = browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                ignore_https_errors=True,
+                extra_http_headers={
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0',
+                }
+            )
+            page = context.new_page()
+            
+            # 禁用页面缓存
+            page.route('**/*', lambda route: route.continue_(headers={
+                **route.request.headers,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+            }))
+            
             url = f"https://baike.baidu.com/item/{requests.utils.quote(keyword)}"
-            page.goto(url, wait_until='domcontentloaded', timeout=timeout_ms)
+            print(f"[DEBUG] 获取同名词选项 - URL: {url}")
+            page.goto(url, wait_until='domcontentloaded', timeout=timeout_ms, referer=None)
             try:
                 # 点击“展开同名词”面板
                 loc = page.locator('div.J-polysemantText, div[class^="polysemantText_"]')
@@ -520,6 +546,9 @@ def _extract_options_dynamic_with_playwright(keyword: str, timeout_ms: int = 120
                 except Exception as e:
                     print(f"[DEBUG] 提取当前页面信息失败: {e}")
             
+            # 关闭上下文和浏览器，确保完全清理
+            page.close()
+            context.close()
             browser.close()
         return results
     except Exception:

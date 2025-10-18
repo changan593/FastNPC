@@ -33,6 +33,7 @@ def get_full_robust(
         return _fallback_empty_result(keyword, chosen_url)
     
     url = chosen_url or f"https://baike.baidu.com/item/{keyword}"
+    print(f"[DEBUG] baike_robust: keyword={keyword}, chosen_url={chosen_url}, final_url={url}")
     
     for attempt in range(max(1, retries)):
         try:

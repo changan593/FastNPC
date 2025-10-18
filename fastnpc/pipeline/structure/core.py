@@ -77,11 +77,14 @@ def run(
         except Exception:
             pass
     except Exception:
+        # Fallback：优先使用 keyword（用户输入），而不是 title（可能被缓存污染）
         try:
             if isinstance(data, dict):
-                persona_name = str(data.get('title') or data.get('keyword') or '角色').strip() or '角色'
+                persona_name = str(data.get('keyword') or data.get('title') or '角色').strip() or '角色'
         except Exception:
             persona_name = '角色'
+    
+    print(f"[INFO] 同步版本 - 提取的角色名（用于LLM提示）: {persona_name}")
 
     # 新实现：直接基于完整 JSON → Markdown 的事实，按八大类分别调用 LLM
     try:
@@ -226,11 +229,14 @@ async def run_async(
         except Exception:
             pass
     except Exception:
+        # Fallback：优先使用 keyword（用户输入），而不是 title（可能被缓存污染）
         try:
             if isinstance(data, dict):
-                persona_name = str(data.get('title') or data.get('keyword') or '角色').strip() or '角色'
+                persona_name = str(data.get('keyword') or data.get('title') or '角色').strip() or '角色'
         except Exception:
             persona_name = '角色'
+    
+    print(f"[INFO] 异步版本 - 提取的角色名（用于LLM提示）: {persona_name}")
 
     # Markdown转换
     try:
