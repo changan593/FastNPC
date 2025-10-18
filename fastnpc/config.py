@@ -62,6 +62,9 @@ REDIS_PORT: int = int(os.environ.get("REDIS_PORT", "6379"))
 REDIS_DB: int = int(os.environ.get("REDIS_DB", "0"))
 REDIS_PASSWORD: str | None = os.environ.get("REDIS_PASSWORD")
 
+# 提示词管理配置
+USE_DB_PROMPTS: bool = os.environ.get("USE_DB_PROMPTS", "true").lower() in ("true", "1", "yes")
+
 
 # 重要目录/文件路径
 CHAR_DIR: Path = BASE_DIR / "Characters"

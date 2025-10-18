@@ -9,6 +9,8 @@ from typing import Any, Dict, List
 
 from fastnpc.llm.openrouter import get_openrouter_completion, get_openrouter_completion_async
 from .processors import parse_json_from_text
+from fastnpc.config import USE_DB_PROMPTS
+from fastnpc.prompt_manager import PromptManager, PromptCategory
 
 
 
@@ -18,13 +20,46 @@ from .processors import parse_json_from_text
 Category = Dict[str, str]
 
 def _category_prompts(persona_name: str) -> Dict[str, str]:
-    # 将 {角色} 占位替换为用户输入的角色名
+    """获取9个类别的提示词（支持从数据库加载）"""
+    # 如果启用数据库提示词，尝试从数据库加载
+    if USE_DB_PROMPTS:
+        try:
+            prompts_dict = {}
+            categories = [
+                "基础身份信息", "个性与行为设定", "背景故事", "知识与能力",
+                "对话与交互规范", "任务/功能性信息", "环境与世界观", 
+                "系统与控制参数", "来源"
+            ]
+            
+            for category in categories:
+                prompt_data = PromptManager.get_active_prompt(
+                    PromptCategory.STRUCTURED_GENERATION,
+                    sub_category=category
+                )
+                if prompt_data:
+                    # 渲染提示词模板，替换变量
+                    template = prompt_data['template_content']
+                    rendered = PromptManager.render_prompt(template, {"persona_name": persona_name})
+                    prompts_dict[category] = rendered
+                else:
+                    print(f"[WARN] 数据库中未找到提示词: {category}，使用降级版本")
+                    # 降级到硬编码版本（在except块中处理）
+                    raise ValueError(f"Missing prompt for {category}")
+            
+            print("[INFO] 使用数据库提示词")
+            return prompts_dict
+        
+        except Exception as e:
+            print(f"[WARN] 从数据库加载提示词失败: {e}，降级到硬编码版本")
+            # 降级到硬编码版本
+    
+    # 硬编码版本（向后兼容）
     R = persona_name
     return {
         "基础身份信息": (
             "从提供的完整事实列表中，提取与" + R + "身份特征相关的信息，生成以下字段：\n"
             "姓名：" + R + "的真实姓名或常用称呼。若有多个别名，注明。\n"
-            "年龄：明确年龄，若只出现“青年/中年”等模糊描述，按原文保留。\n"
+            "年龄：明确年龄，若只出现'青年/中年'等模糊描述，按原文保留。\n"
             "性别：从事实中提取，若无相关信息则留空。\n"
             "职业：当前职业、身份、职务。\n"
             "身份背景：社会身份、出身、籍贯、民族、阶层。\n"
@@ -46,11 +81,11 @@ def _category_prompts(persona_name: str) -> Dict[str, str]:
             "严格 JSON 输出：{\"性格特质\":...,\"价值观\":...,\"情绪风格\":...,\"说话方式\":...,\"偏好\":...,\"厌恶\":...,\"动机与目标\":...}"
         ),
         "背景故事": (
-            "根据完整角色信息，生成" + R + "的背景故事（规范：只有‘经历’与‘关系网络’使用字符串列表，其他均用自然句）：\n"
+            "根据完整角色信息，生成" + R + "的背景故事（规范：只有'经历'与'关系网络'使用字符串列表，其他均用自然句）：\n"
             "出身：出生地/家庭背景/阶层（1-2句自然中文）。\n"
             "经历：重要经历/重大事件/转折点（字符串列表，每项一句）。\n"
             "当前处境：目前状态/社会地位/所处环境（1句）。\n"
-            "关系网络：主要人际关系（字符串列表，每项格式如‘关系：姓名’）。\n"
+            "关系网络：主要人际关系（字符串列表，每项格式如'关系：姓名'）。\n"
             "秘密：如有隐秘信息（1句，若无则空字符串）。\n"
             "若完整角色信息中无相关信息，则依据材料合理推测。\n"
             "严格 JSON 输出：{\"出身\":...,\"经历\":[...],\"当前处境\":...,\"关系网络\":[...],\"秘密\":...}"
@@ -102,8 +137,8 @@ def _category_prompts(persona_name: str) -> Dict[str, str]:
             "根据完整角色信息和数据来源，整理" + R + "的来源元数据：\n"
             "唯一标识：角色的唯一标识符（如baike页面ID、wiki ID等）。\n"
             "链接：角色信息的来源URL地址。\n"
-            "来源信息量：原始数据的大致字数或信息量（如\"约5000字\"）。\n"
-            "若完整角色信息中无相关信息，则标注\"未知\"或留空。\n"
+            "来源信息量：原始数据的大致字数或信息量（如'约5000字'）。\n"
+            "若完整角色信息中无相关信息，则标注'未知'或留空。\n"
             "严格 JSON 输出：{\"唯一标识\":...,\"链接\":...,\"来源信息量\":...}"
         ),
     }
@@ -111,11 +146,24 @@ def _category_prompts(persona_name: str) -> Dict[str, str]:
 
 def _call_category_llm(category_name: str, prompt: str, facts_markdown: str) -> Dict[str, Any]:
     """同步版本（向后兼容）"""
-    sys_msg = (
-        "你是严谨的中文信息抽取助手。\n"
-        "任务：仅基于用户给出的'完整事实列表'文本，生成严格 JSON，键为中文且与提示字段完全一致。\n"
-        "若完整角色信息中无相关信息，则依据材料合理推测。"
-    )
+    # 尝试从数据库加载系统消息
+    sys_msg = None
+    if USE_DB_PROMPTS:
+        try:
+            sys_prompt = PromptManager.get_active_prompt(PromptCategory.STRUCTURED_SYSTEM_MESSAGE)
+            if sys_prompt:
+                sys_msg = sys_prompt['template_content']
+                print("[INFO] 使用数据库系统消息")
+        except Exception as e:
+            print(f"[WARN] 从数据库加载系统消息失败: {e}")
+    
+    # 降级到硬编码版本
+    if not sys_msg:
+        sys_msg = (
+            "你是严谨的中文信息抽取助手。\n"
+            "任务：仅基于用户给出的'完整事实列表'文本，生成严格 JSON，键为中文且与提示字段完全一致。\n"
+            "若完整角色信息中无相关信息，则依据材料合理推测。"
+        )
     # 截断：限制上下文长度，避免过长导致拒答或截断（2 万字符）
     try:
         if isinstance(facts_markdown, str) and len(facts_markdown) > 20000:
@@ -168,16 +216,40 @@ async def _call_category_llm_async(category_name: str, prompt: str, facts_markdo
 
 
 def _generate_persona_brief(role_json: Dict[str, Any], persona_name: str, choose_person: str = "third") -> str:
+    """生成角色简介（支持从数据库加载提示词）"""
     role_str = json.dumps(role_json, ensure_ascii=False)
-    sys_msg = "你是严谨的中文写作助手。"
     person = "第三人称" if choose_person != "first" else "第一人称"
-    user_msg = (
-        "任务：根据下面的 role JSON，生成一段 2-4 句的关于" + persona_name + "的中文人物简介（自然段）。要求：\n"
-        "1) 使用" + person + "；\n"
-        "2) 句子简洁、信息密度高，包含：职业、性格一两个关键点、当前处境或目标；\n"
-        "3) 不要包含 JSON、要点列表或元数据。\n"
-        "4) role JSON：\n" + role_str
-    )
+    
+    # 尝试从数据库加载简介生成提示词
+    user_msg = None
+    if USE_DB_PROMPTS:
+        try:
+            brief_prompt = PromptManager.get_active_prompt(PromptCategory.BRIEF_GENERATION)
+            if brief_prompt:
+                # 渲染模板
+                user_msg = PromptManager.render_prompt(
+                    brief_prompt['template_content'],
+                    {
+                        "persona_name": persona_name,
+                        "person": person,
+                        "role_json": role_str
+                    }
+                )
+                print("[INFO] 使用数据库简介生成提示词")
+        except Exception as e:
+            print(f"[WARN] 从数据库加载简介生成提示词失败: {e}")
+    
+    # 降级到硬编码版本
+    if not user_msg:
+        user_msg = (
+            "任务：根据下面的 role JSON，生成一段 2-4 句的关于" + persona_name + "的中文人物简介（自然段）。要求：\n"
+            "1) 使用" + person + "；\n"
+            "2) 句子简洁、信息密度高，包含：职业、性格一两个关键点、当前处境或目标；\n"
+            "3) 不要包含 JSON、要点列表或元数据。\n"
+            "4) role JSON：\n" + role_str
+        )
+    
+    sys_msg = "你是严谨的中文写作助手。"
     try:
         resp = get_openrouter_completion([
             {"role": "system", "content": sys_msg},

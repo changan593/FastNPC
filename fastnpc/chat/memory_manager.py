@@ -9,6 +9,8 @@ import random
 from typing import Dict, List, Tuple, Optional
 
 from fastnpc.llm.openrouter import get_openrouter_completion
+from fastnpc.config import USE_DB_PROMPTS
+from fastnpc.prompt_manager import PromptManager, PromptCategory
 
 
 # ============= Prompt 模板 =============
@@ -128,6 +130,39 @@ LONG_TERM_INTEGRATION_PROMPT = """你是长期记忆管理助手。将短期记�
 }}}}
 
 **请直接输出JSON，不要使用```json```标记，不要添加额外说明：**"""
+
+
+# ============= 提示词加载函数（支持数据库） =============
+
+def _get_stm_compression_prompt(is_group: bool = False) -> str:
+    """获取短期记忆凝练提示词（支持从数据库加载）"""
+    if USE_DB_PROMPTS:
+        try:
+            category = PromptCategory.GROUP_CHAT_STM_COMPRESSION if is_group else PromptCategory.SINGLE_CHAT_STM_COMPRESSION
+            prompt_data = PromptManager.get_active_prompt(category)
+            if prompt_data:
+                print(f"[INFO] 使用数据库{'群聊' if is_group else '单聊'}短期记忆凝练提示词")
+                return prompt_data['template_content']
+        except Exception as e:
+            print(f"[WARN] 从数据库加载STM凝练提示词失败: {e}")
+    
+    # 降级到硬编码版本
+    return GROUP_CHAT_SHORT_TERM_COMPRESSION_PROMPT if is_group else SHORT_TERM_COMPRESSION_PROMPT
+
+
+def _get_ltm_integration_prompt() -> str:
+    """获取长期记忆整合提示词（支持从数据库加载）"""
+    if USE_DB_PROMPTS:
+        try:
+            prompt_data = PromptManager.get_active_prompt(PromptCategory.LTM_INTEGRATION)
+            if prompt_data:
+                print("[INFO] 使用数据库长期记忆整合提示词")
+                return prompt_data['template_content']
+        except Exception as e:
+            print(f"[WARN] 从数据库加载LTM整合提示词失败: {e}")
+    
+    # 降级到硬编码版本
+    return LONG_TERM_INTEGRATION_PROMPT
 
 
 # ============= 核心函数 =============
@@ -264,8 +299,9 @@ def compress_to_short_term_memory(
     
     overlap_text = '\n'.join(overlap_lines) if overlap_lines else "（无）"
     
-    # 构建Prompt
-    prompt = SHORT_TERM_COMPRESSION_PROMPT.format(
+    # 构建Prompt（支持从数据库加载）
+    prompt_template = _get_stm_compression_prompt(is_group=False)
+    prompt = prompt_template.format(
         role_name=role_name,
         user_name=user_name,
         chat_to_compress=chat_to_compress,
@@ -352,8 +388,9 @@ def compress_to_short_term_memory_group_chat(
     # 格式化参与者列表
     participants_text = '\n'.join([f"- {p}" for p in participants])
     
-    # 构建Prompt
-    prompt = GROUP_CHAT_SHORT_TERM_COMPRESSION_PROMPT.format(
+    # 构建Prompt（支持从数据库加载）
+    prompt_template = _get_stm_compression_prompt(is_group=True)
+    prompt = prompt_template.format(
         role_name=role_name,
         participants_list=participants_text,
         chat_to_compress=chat_to_compress,
@@ -412,11 +449,12 @@ def integrate_to_long_term_memory(
     if not short_memories:
         return existing_long_memories
     
-    # 构建Prompt
+    # 构建Prompt（支持从数据库加载）
     stm_text = '\n'.join([f"- {m}" for m in short_memories])
     ltm_text = '\n'.join([f"- {m}" for m in existing_long_memories]) if existing_long_memories else "（无）"
     
-    prompt = LONG_TERM_INTEGRATION_PROMPT.format(
+    prompt_template = _get_ltm_integration_prompt()
+    prompt = prompt_template.format(
         role_profile_summary=role_profile_summary,
         short_memories_to_integrate=stm_text,
         existing_long_term_memories=ltm_text,

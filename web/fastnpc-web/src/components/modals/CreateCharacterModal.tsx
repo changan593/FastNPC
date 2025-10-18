@@ -46,7 +46,7 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
   const [showAvatarPrompt, setShowAvatarPrompt] = useState(false)
   const [showAvatarCrop, setShowAvatarCrop] = useState(false)
   const [avatarToProcess, setAvatarToProcess] = useState<string>('')
-  const [processingAvatar, setProcessingAvatar] = useState(false)
+  const [, setProcessingAvatar] = useState(false)
   const [avatarProcessed, setAvatarProcessed] = useState(false)
 
   // 监听角色创建完成，检查是否需要裁剪头像

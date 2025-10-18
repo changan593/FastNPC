@@ -1,7 +1,11 @@
 import { useAdmin } from '../../contexts/AdminContext'
 import { useAuth } from '../../contexts/AuthContext'
 
-export function AdminPanel() {
+interface AdminPanelProps {
+  onOpenPromptManagement?: () => void
+}
+
+export function AdminPanel({ onOpenPromptManagement }: AdminPanelProps = {}) {
   const { user, api } = useAuth()
   const {
     adminUsers,
@@ -70,6 +74,11 @@ export function AdminPanel() {
         </div>
         <div className="admin-actions">
           <input type="text" placeholder="搜索..." value={adminSearchQuery} onChange={e => setAdminSearchQuery(e.target.value)} className="admin-search" />
+          {onOpenPromptManagement && (
+            <button onClick={onOpenPromptManagement} className="settings" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+              🎯 提示词管理
+            </button>
+          )}
           <button onClick={refreshAdminData} className="settings">
             刷新数据
           </button>

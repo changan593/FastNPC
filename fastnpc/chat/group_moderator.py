@@ -7,6 +7,8 @@ import random
 from typing import Dict, List, Any
 
 from fastnpc.llm.openrouter import get_openrouter_completion
+from fastnpc.config import USE_DB_PROMPTS
+from fastnpc.prompt_manager import PromptManager, PromptCategory
 
 
 MODERATOR_PROMPT = """任务：基于参与者性格与最近对话内容，从剧情角度判断下一位最合适发言的角色。
@@ -76,8 +78,22 @@ def judge_next_speaker(
     for msg in messages[-20:]:
         messages_text.append(f"{msg.get('sender_name', '')}: {msg.get('content', '')}")
     
-    # 构建prompt
-    prompt = MODERATOR_PROMPT.format(
+    # 构建prompt（支持从数据库加载）
+    prompt_template = None
+    if USE_DB_PROMPTS:
+        try:
+            prompt_data = PromptManager.get_active_prompt(PromptCategory.GROUP_MODERATOR)
+            if prompt_data:
+                prompt_template = prompt_data['template_content']
+                print("[INFO] 使用数据库群聊中控提示词")
+        except Exception as e:
+            print(f"[WARN] 从数据库加载群聊中控提示词失败: {e}")
+    
+    # 降级到硬编码版本
+    if not prompt_template:
+        prompt_template = MODERATOR_PROMPT
+    
+    prompt = prompt_template.format(
         participants="\n".join(participants_text),
         recent_messages="\n".join(messages_text) if messages_text else "（暂无消息）"
     )

@@ -9,8 +9,9 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from fastnpc.config import CHAR_DIR
+from fastnpc.config import CHAR_DIR, USE_DB_PROMPTS
 from fastnpc.utils.roles import normalize_role_name
+from fastnpc.prompt_manager import PromptManager, PromptCategory
 from fastnpc.api.auth import (
     create_group_chat,
     list_group_chats,
@@ -750,20 +751,39 @@ def _build_group_chat_system_prompt(
     if character_display_names:
         all_names = f"{user_name}、{character_display_names}"
     
-    fixed_rules = (
-        f"你现在的身份是 {display_name}。\n"
-        f"你必须始终以第一人称与 {all_names} 等人进行群聊对话。\n"
-        "不要以助理或语言模型自称，不要暴露或引用设定文本本身。\n"
-        "回答必须自然流畅，避免逐条罗列，不使用 JSON、键值对或项目符号列表，除非用户明确要求。\n"
-        "回答应尽量简洁，若非必要，不超过两句话。\n"
-        "如果用户要求的内容超出你的设定范围，请礼貌说明限制，并转回允许的话题。\n"
-        "【群聊专用规则】在群聊中，严格要求注意不要重复自己或他人已表达过的观点或内容，避免冗余。\n"
-        "【群聊专用规则】在群聊中，严格要求不要说空话、废话、套话，要言之有物，言之有理。\n"
-        "【群聊专用规则】在群聊中，要多与包括用户在内的其他角色互动，可以回应、提问或引用包括用户在内的其他角色的发言，营造自然的多人对话氛围。"
-        "【群聊专用规则】在群聊中，如果当前话题已经讨论完了，就不要再重复讨论，可以适当引导到新的话题，但不要重复以前讨论过的话题，这个新的话题可以是旧话题的延伸，也可以是和群里某个或某几个角色有关的话题，或者和用户有关的话题。"
-        "【群聊专用规则】在群聊中，严格要求应该正面回答用户的问题，不要回避问题，不要说“两者都好”等类似的话"
-        "【群聊专用规则】在群聊中，严格要求不要理性客观中立，和其它角色可以针锋相对，可以批评其它角色，可以批评用户，但不要过度，不要人身攻击，不要侮辱人格，不要涉及政治、宗教、种族、性别等敏感话题。"
-    )
+    # 从数据库加载群聊系统提示（支持降级）
+    fixed_rules = None
+    if USE_DB_PROMPTS:
+        try:
+            prompt_data = PromptManager.get_active_prompt(PromptCategory.GROUP_CHAT_CHARACTER)
+            if prompt_data:
+                fixed_rules = PromptManager.render_prompt(
+                    prompt_data['template_content'],
+                    {
+                        "display_name": display_name,
+                        "other_members": all_names
+                    }
+                )
+                print("[INFO] 使用数据库群聊系统提示词")
+        except Exception as e:
+            print(f"[WARN] 从数据库加载群聊系统提示词失败: {e}")
+    
+    # 降级到硬编码版本
+    if not fixed_rules:
+        fixed_rules = (
+            f"你现在的身份是 {display_name}。\n"
+            f"你必须始终以第一人称与 {all_names} 等人进行群聊对话。\n"
+            "不要以助理或语言模型自称，不要暴露或引用设定文本本身。\n"
+            "回答必须自然流畅，避免逐条罗列，不使用 JSON、键值对或项目符号列表，除非用户明确要求。\n"
+            "回答应尽量简洁，若非必要，不超过两句话。\n"
+            "如果用户要求的内容超出你的设定范围，请礼貌说明限制，并转回允许的话题。\n"
+            "【群聊专用规则】在群聊中，严格要求注意不要重复自己或他人已表达过的观点或内容，避免冗余。\n"
+            "【群聊专用规则】在群聊中，严格要求不要说空话、废话、套话，要言之有物，言之有理。\n"
+            "【群聊专用规则】在群聊中，要多与包括用户在内的其他角色互动，可以回应、提问或引用包括用户在内的其他角色的发言，营造自然的多人对话氛围。\n"
+            "【群聊专用规则】在群聊中，如果当前话题已经讨论完了，就不要再重复讨论，可以适当引导到新的话题，但不要重复以前讨论过的话题，这个新的话题可以是旧话题的延伸，也可以是和群里某个或某几个角色有关的话题，或者和用户有关的话题。\n"
+            "【群聊专用规则】在群聊中，严格要求应该正面回答用户的问题，不要回避问题，不要说'两者都好'等类似的话\n"
+            "【群聊专用规则】在群聊中，严格要求不要理性客观中立，和其它角色可以针锋相对，可以批评其它角色，可以批评用户，但不要过度，不要人身攻击，不要侮辱人格，不要涉及政治、宗教、种族、性别等敏感话题。"
+        )
     
     # 拼接六部分
     lines: List[str] = []

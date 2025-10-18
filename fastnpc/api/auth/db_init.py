@@ -759,6 +759,170 @@ def init_db():
             print("[INFO] 已为users表添加avatar_url字段")
     except Exception as e:
         print(f"[WARN] 添加users.avatar_url字段失败（可能已存在）: {e}")
+    
+    # ========== 提示词管理系统表 ==========
+    # 提示词模板表
+    if USE_POSTGRESQL:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_templates(
+                id SERIAL PRIMARY KEY,
+                category TEXT NOT NULL,
+                sub_category TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                template_content TEXT NOT NULL,
+                version TEXT NOT NULL DEFAULT '1.0.0',
+                is_active INT NOT NULL DEFAULT 0,
+                created_by INT,
+                created_at BIGINT NOT NULL,
+                updated_at BIGINT NOT NULL,
+                metadata TEXT,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_prompt_category ON prompt_templates(category, sub_category, is_active)")
+    else:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_templates(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                sub_category TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                template_content TEXT NOT NULL,
+                version TEXT NOT NULL DEFAULT '1.0.0',
+                is_active INTEGER NOT NULL DEFAULT 0,
+                created_by INTEGER,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                metadata TEXT,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_prompt_category ON prompt_templates(category, sub_category, is_active)")
+    
+    # 测试用例表
+    if USE_POSTGRESQL:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_test_cases(
+                id SERIAL PRIMARY KEY,
+                prompt_category TEXT NOT NULL,
+                prompt_sub_category TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                input_data TEXT NOT NULL,
+                expected_output TEXT,
+                evaluation_metrics TEXT,
+                created_at BIGINT NOT NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_test_case_category ON prompt_test_cases(prompt_category, prompt_sub_category)")
+    else:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_test_cases(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_category TEXT NOT NULL,
+                prompt_sub_category TEXT,
+                name TEXT NOT NULL,
+                description TEXT,
+                input_data TEXT NOT NULL,
+                expected_output TEXT,
+                evaluation_metrics TEXT,
+                created_at INTEGER NOT NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_test_case_category ON prompt_test_cases(prompt_category, prompt_sub_category)")
+    
+    # 评估记录表
+    if USE_POSTGRESQL:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_evaluations(
+                id SERIAL PRIMARY KEY,
+                prompt_template_id INT NOT NULL,
+                test_case_id INT NOT NULL,
+                output_content TEXT NOT NULL,
+                auto_metrics TEXT,
+                manual_score INT,
+                manual_feedback TEXT,
+                evaluator_id INT,
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (prompt_template_id) REFERENCES prompt_templates(id) ON DELETE CASCADE,
+                FOREIGN KEY (test_case_id) REFERENCES prompt_test_cases(id) ON DELETE CASCADE,
+                FOREIGN KEY (evaluator_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_eval_prompt ON prompt_evaluations(prompt_template_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_eval_test_case ON prompt_evaluations(test_case_id)")
+    else:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_evaluations(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_template_id INTEGER NOT NULL,
+                test_case_id INTEGER NOT NULL,
+                output_content TEXT NOT NULL,
+                auto_metrics TEXT,
+                manual_score INTEGER,
+                manual_feedback TEXT,
+                evaluator_id INTEGER,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (prompt_template_id) REFERENCES prompt_templates(id) ON DELETE CASCADE,
+                FOREIGN KEY (test_case_id) REFERENCES prompt_test_cases(id) ON DELETE CASCADE,
+                FOREIGN KEY (evaluator_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_eval_prompt ON prompt_evaluations(prompt_template_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_eval_test_case ON prompt_evaluations(test_case_id)")
+    
+    # 版本历史表
+    if USE_POSTGRESQL:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_version_history(
+                id SERIAL PRIMARY KEY,
+                prompt_template_id INT NOT NULL,
+                version TEXT NOT NULL,
+                change_log TEXT,
+                previous_content TEXT,
+                created_by INT,
+                created_at BIGINT NOT NULL,
+                FOREIGN KEY (prompt_template_id) REFERENCES prompt_templates(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_version_history ON prompt_version_history(prompt_template_id, created_at DESC)")
+    else:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_version_history(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt_template_id INTEGER NOT NULL,
+                version TEXT NOT NULL,
+                change_log TEXT,
+                previous_content TEXT,
+                created_by INTEGER,
+                created_at INTEGER NOT NULL,
+                FOREIGN KEY (prompt_template_id) REFERENCES prompt_templates(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_version_history ON prompt_version_history(prompt_template_id, created_at DESC)")
+    
+    print("[INFO] 提示词管理系统表创建完成")
+    
     conn.commit()
     _return_conn(conn)
 

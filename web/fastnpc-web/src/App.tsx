@@ -16,6 +16,7 @@ import { PolysemantModal } from './components/modals/PolysemantModal'
 import { ManageGroupModal } from './components/modals/ManageGroupModal'
 import { ManageCharModal } from './components/modals/ManageCharModal'
 import { AdminPanel } from './components/admin/AdminPanel'
+import { PromptManagementModal } from './components/modals/PromptManagementModal'
 
 function AppContent() {
   const { user, api } = useAuth()
@@ -95,6 +96,7 @@ function AppContent() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [maxGroupReplyRounds, setMaxGroupReplyRounds] = useState<string>('3')
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
+  const [showPromptManagement, setShowPromptManagement] = useState(false)
 
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
   const prevActiveRoleRef = useRef<string>('')
@@ -451,7 +453,7 @@ function AppContent() {
         <div className="chat-body" ref={chatBodyRef}>
             {/* 管理员视图或普通聊天视图 */}
           {adminView ? (
-              <AdminPanel />
+              <AdminPanel onOpenPromptManagement={() => setShowPromptManagement(true)} />
             ) : (
               messages.map((m, i) => {
               const text = String(m.content || '')
@@ -621,6 +623,8 @@ function AppContent() {
       <FeedbackModal show={showFeedback} onClose={() => setShowFeedback(false)} />
 
       <InspectModal show={showInspect} text={inspectText} onClose={() => setShowInspect(false)} />
+
+      <PromptManagementModal show={showPromptManagement} onClose={() => setShowPromptManagement(false)} />
               </div>
   )
 }
