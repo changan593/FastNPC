@@ -119,8 +119,15 @@ export function Sidebar({
               ) : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="name">
-                  <span>{item.type === 'character' ? '👤 ' : '💬 '}</span>
-                  {item.name}
+                  {item.type === 'character' ? (
+                    item.data.avatar_url ? (
+                      item.name
+                    ) : (
+                      <><span>👤 </span>{item.name}</>
+                    )
+                  ) : (
+                    <><span>💬 </span>{item.name}</>
+                  )}
                 </div>
                 <div className="time">{new Date(item.updated_at * 1000).toLocaleDateString()}</div>
               </div>

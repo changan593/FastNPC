@@ -120,7 +120,10 @@ def api_delete_character(name: str, request: Request):
     user = _require_user(request)
     if not user:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
-    delete_character(int(user['uid']), name)
+    uid = int(user['uid'])
+    print(f"[DEBUG] API: 开始删除角色 {name}, user_id={uid}")
+    delete_character(uid, name)
+    print(f"[DEBUG] API: 角色删除完成 {name}, user_id={uid}")
     # 数据库级联删除已完成，不再操作文件系统
     return {"ok": True}
 

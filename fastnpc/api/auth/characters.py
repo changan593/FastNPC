@@ -121,6 +121,7 @@ def rename_character(user_id: int, old_name: str, new_name: str) -> Tuple[bool, 
 
 def delete_character(user_id: int, name: str) -> None:
     """删除角色（并清除缓存）"""
+    print(f"[DEBUG] delete_character: user_id={user_id}, name={name}")
     conn = _get_conn()
     try:
         cur = conn.cursor()
@@ -129,6 +130,7 @@ def delete_character(user_id: int, name: str) -> None:
         if row:
             row_dict = _row_to_dict(row, cur)
             cid = int(row_dict['id'])
+            print(f"[DEBUG] delete_character: 找到角色 id={cid}")
             
             # 删除所有相关表中的数据（按照数据库实际的表名）
             # 注意：由于设置了 ON DELETE CASCADE 外键约束，理论上删除 characters 记录会自动级联删除
@@ -157,12 +159,15 @@ def delete_character(user_id: int, name: str) -> None:
                 # 最后删除角色主记录
                 cur.execute("DELETE FROM characters WHERE id=%s", (cid,))
                 conn.commit()
+                print(f"[DEBUG] delete_character: 数据库删除完成")
                 
                 # 清除所有相关缓存
                 cache = get_redis_cache()
+                print(f"[DEBUG] delete_character: 开始清除缓存")
                 cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
                 cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
                 cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+                print(f"[DEBUG] delete_character: 缓存清除完成: char_list:{user_id}")
             except Exception as e:
                 conn.rollback()
                 print(f"[ERROR] 删除角色失败: {e}")

@@ -68,19 +68,24 @@ async def upload_character_avatar(role: str, request: Request, file: UploadFile 
         elif img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # 裁剪成正方形（中心裁剪）
+        # 检查图片是否已经是正方形（前端裁剪好的）
         width, height = img.size
-        min_side = min(width, height)
+        print(f"[DEBUG] 上传图片尺寸: {width}x{height}")
         
-        left = (width - min_side) // 2
-        top = (height - min_side) // 2
-        right = left + min_side
-        bottom = top + min_side
-        
-        img_square = img.crop((left, top, right, bottom))
-        
-        # 调整大小为256x256
-        img_resized = img_square.resize((256, 256), Image.Resampling.LANCZOS)
+        if width == height:
+            # 已经是正方形，直接调整大小
+            img_resized = img.resize((256, 256), Image.Resampling.LANCZOS)
+        else:
+            # 不是正方形，进行中心裁剪（适用于直接上传的情况）
+            min_side = min(width, height)
+            
+            left = (width - min_side) // 2
+            top = (height - min_side) // 2
+            right = left + min_side
+            bottom = top + min_side
+            
+            img_square = img.crop((left, top, right, bottom))
+            img_resized = img_square.resize((256, 256), Image.Resampling.LANCZOS)
         
         # 保存为JPEG
         final_filename = f"user_{uid}_{role}.jpg"

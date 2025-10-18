@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react'
 import { useCharacter } from '../../contexts/CharacterContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { ImageCropper } from '../ImageCropper'
 
 interface CreateCharacterModalProps {
   show: boolean
@@ -8,7 +10,7 @@ interface CreateCharacterModalProps {
 }
 
 export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharacterModalProps) {
-  const { user } = useAuth()
+  const { user, api } = useAuth()
   const {
     newRole,
     setNewRole,
@@ -36,7 +38,83 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
     setExportCtx,
     createRole,
     polyChoiceIdx,
+    characters,
+    setCharacters,
+    activeRole,
   } = useCharacter()
+
+  const [showAvatarPrompt, setShowAvatarPrompt] = useState(false)
+  const [showAvatarCrop, setShowAvatarCrop] = useState(false)
+  const [avatarToProcess, setAvatarToProcess] = useState<string>('')
+  const [processingAvatar, setProcessingAvatar] = useState(false)
+  const [avatarProcessed, setAvatarProcessed] = useState(false)
+
+  // 监听角色创建完成，检查是否需要裁剪头像
+  useEffect(() => {
+    if (createDone && activeRole && characters.length > 0 && !avatarProcessed) {
+      const newChar = characters.find(c => c.role === activeRole)
+      if (newChar?.avatar_url) {
+        // 下载头像到本地进行裁剪
+        fetch(newChar.avatar_url)
+          .then(res => res.blob())
+          .then(blob => {
+            const url = URL.createObjectURL(blob)
+            setAvatarToProcess(url)
+            setShowAvatarPrompt(true)
+          })
+          .catch(err => {
+            console.error('加载头像失败:', err)
+          })
+      }
+    }
+  }, [createDone, activeRole, characters, avatarProcessed])
+
+  async function handleAvatarCropComplete(croppedBlob: Blob) {
+    setProcessingAvatar(true)
+    
+    // 先关闭所有头像相关弹窗，并标记为已处理
+    setShowAvatarPrompt(false)
+    setShowAvatarCrop(false)
+    setAvatarProcessed(true)
+    if (avatarToProcess) {
+      URL.revokeObjectURL(avatarToProcess)
+    }
+    setAvatarToProcess('')
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', croppedBlob, 'avatar.jpg')
+
+      await api.post(`/api/characters/${encodeURIComponent(activeRole)}/avatar`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      // 刷新角色列表
+      const { data: list } = await api.get('/api/characters')
+      setCharacters(list.items || [])
+      
+      alert('头像已更新')
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || '头像更新失败')
+    } finally {
+      setProcessingAvatar(false)
+    }
+  }
+
+  function handleSkipCrop() {
+    setShowAvatarPrompt(false)
+    setShowAvatarCrop(false)
+    setAvatarProcessed(true)
+    if (avatarToProcess) {
+      URL.revokeObjectURL(avatarToProcess)
+    }
+    setAvatarToProcess('')
+  }
+
+  function handleStartCrop() {
+    setShowAvatarPrompt(false)
+    setShowAvatarCrop(true)
+  }
 
   async function handleClose() {
     // 如果正在创建且有任务ID，先取消任务
@@ -45,10 +123,18 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
       console.log('[INFO] 已取消创建任务')
     }
     
+    // 重置所有状态
     setNewRole('')
     setProgress(null)
     setCreateDone(false)
     setCreating(false)
+    setShowAvatarPrompt(false)
+    setShowAvatarCrop(false)
+    setAvatarProcessed(false)
+    if (avatarToProcess) {
+      URL.revokeObjectURL(avatarToProcess)
+    }
+    setAvatarToProcess('')
     onClose()
   }
 
@@ -171,6 +257,83 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
           )}
         </div>
       </div>
+
+      {/* 头像裁剪提示 */}
+      {showAvatarPrompt && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            zIndex: 10001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 600 }}>
+              🎭 检测到角色头像
+            </h3>
+            <p style={{ margin: '0 0 20px', color: '#6b7280', lineHeight: 1.6 }}>
+              我们为您的角色找到了头像图片。由于爬取的图片可能不是正方形，建议您裁剪调整以获得最佳显示效果。
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={handleSkipCrop}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  color: '#374151',
+                }}
+              >
+                使用原图
+              </button>
+              <button
+                onClick={handleStartCrop}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#fff',
+                }}
+              >
+                裁剪调整
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 图片裁剪器 */}
+      {showAvatarCrop && avatarToProcess && (
+        <ImageCropper
+          image={avatarToProcess}
+          onCropComplete={handleAvatarCropComplete}
+          onCancel={handleSkipCrop}
+        />
+      )}
     </div>
   )
 }
