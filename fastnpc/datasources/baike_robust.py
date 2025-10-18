@@ -68,12 +68,13 @@ def _fetch_with_playwright(keyword: str, url: str, timeout_ms: int) -> Dict[str,
             ]
         )
         
-        # 创建上下文，模拟真实浏览器
+        # 创建上下文，模拟真实浏览器（禁用缓存以避免获取到旧页面）
         context = browser.new_context(
             viewport={'width': 1920, 'height': 1080},
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             locale='zh-CN',
             timezone_id='Asia/Shanghai',
+            ignore_https_errors=True,
             extra_http_headers={
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
                 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
@@ -85,7 +86,9 @@ def _fetch_with_playwright(keyword: str, url: str, timeout_ms: int) -> Dict[str,
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',  # 强制禁用缓存
+                'Pragma': 'no-cache',  # HTTP/1.0 缓存控制
+                'Expires': '0',  # 立即过期
             }
         )
         
@@ -105,8 +108,16 @@ def _fetch_with_playwright(keyword: str, url: str, timeout_ms: int) -> Dict[str,
         """)
         
         try:
-            # 访问页面
-            page.goto(url, wait_until='domcontentloaded', timeout=timeout_ms)
+            # 禁用页面缓存
+            page.route('**/*', lambda route: route.continue_(headers={
+                **route.request.headers,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+            }))
+            
+            # 访问页面（强制刷新，不使用缓存）
+            print(f"[DEBUG] Playwright访问URL: {url}")
+            page.goto(url, wait_until='domcontentloaded', timeout=timeout_ms, referer=None)
             
             # 随机延迟，模拟人类阅读
             time.sleep(random.uniform(0.8, 1.5))
@@ -147,13 +158,30 @@ def _fetch_with_playwright(keyword: str, url: str, timeout_ms: int) -> Dict[str,
             # 提取数据
             result = _parse_html_content(page, keyword, url)
             
+            # 验证返回的数据是否正确（标题应该包含关键词）
+            print(f"[DEBUG] 爬取结果 - keyword: {keyword}, title: {result.get('title', 'N/A')}")
+            
+            # 关闭上下文和浏览器，确保完全清理
+            page.close()
+            context.close()
             browser.close()
+            
             return result
             
         except PlaywrightTimeout as e:
+            try:
+                page.close()
+                context.close()
+            except:
+                pass
             browser.close()
             raise Exception(f"页面加载超时: {e}")
         except Exception as e:
+            try:
+                page.close()
+                context.close()
+            except:
+                pass
             browser.close()
             raise
 

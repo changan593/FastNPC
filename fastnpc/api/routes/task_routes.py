@@ -92,3 +92,32 @@ def api_task(task_id: str):
         "elapsed_sec": (max(0, now - getattr(t, 'started_at', now)) if getattr(t, 'started_at', None) else None),
     }
 
+
+@router.post("/api/tasks/{task_id}/cancel")
+def api_cancel_task(task_id: str, request: Request):
+    """取消正在执行的任务"""
+    from fastnpc.api.utils import _require_user
+    from fastnpc.api.state import tasks_lock
+    
+    user = _require_user(request)
+    if not user:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    
+    with tasks_lock:
+        t = tasks.get(task_id)
+        if not t:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"error": "任务不存在"}, status_code=404)
+        
+        # 验证任务所属用户
+        if t.user_id != user.get('uid'):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"error": "无权取消此任务"}, status_code=403)
+        
+        # 设置取消标志
+        t.cancelled = True
+        print(f"[INFO] 用户 {user.get('username')} 请求取消任务 {task_id}")
+    
+    return {"ok": True, "message": "取消请求已发送"}
+

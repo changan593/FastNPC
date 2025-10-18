@@ -129,15 +129,44 @@ def delete_character(user_id: int, name: str) -> None:
         if row:
             row_dict = _row_to_dict(row, cur)
             cid = int(row_dict['id'])
-            cur.execute("DELETE FROM messages WHERE user_id=%s AND character_id=%s", (user_id, cid))
-            cur.execute("DELETE FROM characters WHERE id=%s", (cid,))
-            conn.commit()
             
-            # 清除所有相关缓存
-            cache = get_redis_cache()
-            cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
-            cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
-            cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+            # 删除所有相关表中的数据（按照数据库实际的表名）
+            # 注意：由于设置了 ON DELETE CASCADE 外键约束，理论上删除 characters 记录会自动级联删除
+            # 但为了兼容旧数据库（可能没有外键约束），这里显式删除所有子表数据
+            try:
+                # 删除消息
+                cur.execute("DELETE FROM messages WHERE user_id=%s AND character_id=%s", (user_id, cid))
+                
+                # 删除角色详细信息（9个分类表）
+                cur.execute("DELETE FROM character_basic_info WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_knowledge WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_personality WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_dialogue_rules WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_tasks WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_worldview WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_background WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_experiences WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_relationships WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_system_params WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_source_info WHERE character_id=%s", (cid,))
+                cur.execute("DELETE FROM character_memories WHERE character_id=%s", (cid,))
+                
+                # 从所有群聊中移除该角色（按名称匹配）
+                cur.execute("DELETE FROM group_members WHERE member_type=%s AND member_name=%s", ('character', name))
+                
+                # 最后删除角色主记录
+                cur.execute("DELETE FROM characters WHERE id=%s", (cid,))
+                conn.commit()
+                
+                # 清除所有相关缓存
+                cache = get_redis_cache()
+                cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
+                cache.delete(f"{CACHE_KEY_CHARACTER_PROFILE}:{user_id}:{name}")
+                cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+            except Exception as e:
+                conn.rollback()
+                print(f"[ERROR] 删除角色失败: {e}")
+                raise
     finally:
         _return_conn(conn)
 

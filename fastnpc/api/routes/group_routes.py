@@ -793,7 +793,8 @@ def api_get_member_briefs(group_id: int, request: Request):
                 member_user_profile = "普通用户"
             
             briefs.append({
-                "name": member['member_name'],  # 用户名不需要去后缀
+                "name": member['member_name'],  # 显示名称（用户名不需要去后缀）
+                "original_name": member['member_name'],  # 原始名称（用于API调用）
                 "type": "user",
                 "brief": member_user_profile[:100]
             })
@@ -805,20 +806,23 @@ def api_get_member_briefs(group_id: int, request: Request):
                     personality = prof.get('个性与行为设定', {})
                     brief = f"{base.get('职业', '')} · {personality.get('性格特质', '')}"
                     briefs.append({
-                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "name": _remove_timestamp_suffix(member['member_name']),  # 显示名称（去掉时间后缀）
+                        "original_name": member['member_name'],  # 原始名称（用于API调用和比较）
                         "type": "character",
                         "brief": brief[:100]
                     })
                 else:
                     briefs.append({
-                        "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                        "name": _remove_timestamp_suffix(member['member_name']),
+                        "original_name": member['member_name'],
                         "type": "character",
                         "brief": "角色"
                     })
             except Exception as e:
                 print(f"[ERROR] 加载角色简介失败: {e}")
                 briefs.append({
-                    "name": _remove_timestamp_suffix(member['member_name']),  # 去掉时间后缀
+                    "name": _remove_timestamp_suffix(member['member_name']),
+                    "original_name": member['member_name'],
                     "type": "character",
                     "brief": "无简介"
                 })
@@ -993,26 +997,36 @@ async def get_group_message_prompt(group_id: int, msg_id: int, request: Request)
     if not detail:
         return JSONResponse({"error": "无权访问该群聊"}, status_code=403)
     
+    from fastnpc.config import USE_POSTGRESQL
+    from fastnpc.api.auth import _row_to_dict
+    from fastnpc.api.auth.db_utils import _return_conn
+    
     conn = _get_conn()
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT sender_type, sender_name, content, system_prompt_snapshot, moderator_prompt, moderator_response FROM group_messages WHERE id=? AND group_id=?",
+            "SELECT sender_type, sender_name, content, system_prompt_snapshot, moderator_prompt, moderator_response FROM group_messages WHERE id=%s AND group_id=%s",
             (msg_id, group_id)
         )
         row = cur.fetchone()
         if not row:
             return JSONResponse({"error": "消息不存在"}, status_code=404)
         
+        # 正确处理行数据
+        if USE_POSTGRESQL:
+            row_dict = _row_to_dict(row, cur)
+        else:
+            row_dict = dict(row)
+        
         return {
-            "sender_type": row['sender_type'],
-            "sender_name": row['sender_name'],
-            "user_content": row['content'],
-            "system_prompt": row['system_prompt_snapshot'] or "（无）",
-            "moderator_prompt": row['moderator_prompt'] or "（无）",
-            "moderator_response": row['moderator_response'] or "（无）"
+            "sender_type": row_dict['sender_type'],
+            "sender_name": row_dict['sender_name'],
+            "user_content": row_dict['content'],
+            "system_prompt": row_dict['system_prompt_snapshot'] or "（无）",
+            "moderator_prompt": row_dict['moderator_prompt'] or "（无）",
+            "moderator_response": row_dict['moderator_response'] or "（无）"
         }
     finally:
-        conn.close()
+        _return_conn(conn)
 
 

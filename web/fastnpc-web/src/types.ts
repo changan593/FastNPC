@@ -12,7 +12,7 @@ export interface Message {
 }
 
 export interface TaskState {
-  status: 'pending' | 'running' | 'done' | 'error' | 'not_found';
+  status: 'pending' | 'running' | 'done' | 'error' | 'not_found' | 'cancelled';
   progress?: number;
   message?: string;
   role?: string;
@@ -62,7 +62,8 @@ export interface GroupMember {
 }
 
 export interface MemberBrief {
-  name: string;
+  name: string;  // 显示名称（去掉时间戳后缀）
+  original_name: string;  // 原始名称（带时间戳，用于API调用）
   type: 'user' | 'character';
   brief: string;
 }

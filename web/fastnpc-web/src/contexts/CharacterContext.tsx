@@ -29,6 +29,8 @@ interface CharacterContextType {
   setProgress: (progress: TaskState | null) => void
   createDone: boolean
   setCreateDone: (done: boolean) => void
+  currentTaskId: string
+  setCurrentTaskId: (taskId: string) => void
   exportFacts: boolean
   setExportFacts: (exp: boolean) => void
   exportBullets: boolean
@@ -80,6 +82,7 @@ interface CharacterContextType {
   // 方法
   refreshList: () => Promise<void>
   createRole: () => Promise<void>
+  cancelCurrentTask: () => Promise<void>
   renameRole: (oldName: string) => Promise<void>
   deleteRole: (name: string) => Promise<void>
   copyRole: (name: string) => Promise<void>
@@ -107,6 +110,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
   const [creating, setCreating] = useState(false)
   const [progress, setProgress] = useState<TaskState|null>(null)
   const [createDone, setCreateDone] = useState(false)
+  const [currentTaskId, setCurrentTaskId] = useState<string>('')
   const [exportFacts, setExportFacts] = useState(false)
   const [exportBullets, setExportBullets] = useState(false)
   const [exportSummary, setExportSummary] = useState(false)
@@ -182,27 +186,55 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
       }
       const { data } = await api.post('/api/characters', payload)
       const taskId = data.task_id
+      setCurrentTaskId(taskId)
       // poll
       let done = false
+      let finalStatus = ''
       while (!done) {
         const { data: t } = await api.get(`/api/tasks/${taskId}`)
         setProgress(t)
         if (t.status === 'done') {
           done = true
+          finalStatus = 'done'
           break
         }
-        if (t.status === 'error' || t.status === 'not_found') break
+        if (t.status === 'error' || t.status === 'not_found' || t.status === 'cancelled') {
+          finalStatus = t.status
+          break
+        }
         await new Promise(r => setTimeout(r, 1200))
       }
+      
+      // 如果任务被取消，等待一小段时间确保后端删除操作完成
+      if (finalStatus === 'cancelled') {
+        console.log('[INFO] 任务已取消，等待后端清理...')
+        await new Promise(r => setTimeout(r, 1000))
+      }
+      
       // refresh list
       const { data: list } = await api.get('/api/characters')
       setCharacters(list.items || [])
-      setActiveRole(roleWithTs)
-      setCreateDone(true)
+      
+      // 只有成功完成时才设置活动角色
+      if (finalStatus === 'done') {
+        setActiveRole(roleWithTs)
+        setCreateDone(true)
+      }
     } catch (e) {
       console.error(e)
     } finally {
       setCreating(false)
+      setCurrentTaskId('')
+    }
+  }
+  
+  async function cancelCurrentTask() {
+    if (!currentTaskId) return
+    try {
+      await api.post(`/api/tasks/${currentTaskId}/cancel`)
+      console.log('[INFO] 已发送取消请求:', currentTaskId)
+    } catch (e) {
+      console.error('取消任务失败:', e)
     }
   }
 
@@ -322,6 +354,8 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setProgress,
         createDone,
         setCreateDone,
+        currentTaskId,
+        setCurrentTaskId,
         exportFacts,
         setExportFacts,
         exportBullets,
@@ -363,6 +397,7 @@ export function CharacterProvider({ children }: { children: ReactNode }) {
         setShowManageChar,
         refreshList,
         createRole,
+        cancelCurrentTask,
         renameRole,
         deleteRole,
         copyRole,

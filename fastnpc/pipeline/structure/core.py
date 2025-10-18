@@ -68,8 +68,11 @@ def run(
         else:
             persona_name = name_wo_ext
         persona_name = str(persona_name or '角色').strip() or '角色'
-        # 去掉创建时添加的时间戳后缀（YYYYMMDDHHmm）
+        # 去掉创建时添加的时间戳后缀（YYYYMMDDHHmm）和tempfile的随机后缀
         try:
+            # 先去掉tempfile的随机后缀（如 _2iwftoc0）
+            persona_name = re.sub(r"_[a-z0-9]{8}$", "", persona_name).strip()
+            # 再去掉时间戳（12位数字）
             persona_name = re.sub(r"\d{12}$", "", persona_name).strip() or persona_name
         except Exception:
             pass
@@ -216,6 +219,9 @@ async def run_async(
             persona_name = name_wo_ext
         persona_name = str(persona_name or '角色').strip() or '角色'
         try:
+            # 先去掉tempfile的随机后缀（如 _2iwftoc0）
+            persona_name = re.sub(r"_[a-z0-9]{8}$", "", persona_name).strip()
+            # 再去掉时间戳（12位数字）
             persona_name = re.sub(r"\d{12}$", "", persona_name).strip() or persona_name
         except Exception:
             pass

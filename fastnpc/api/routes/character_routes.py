@@ -22,6 +22,8 @@ from fastnpc.api.auth import (
     load_character_full_data,
     save_character_full_data,
     get_character_id,
+    load_character_memories,
+    save_character_memories,
 )
 from fastnpc.api.utils import (
     _require_user,
@@ -335,4 +337,58 @@ async def structured_save(role: str, request: Request):
         return JSONResponse({"ok": True})
     except Exception as e:
         return JSONResponse({"ok": False, "error": f"保存失败: {e}"}, status_code=500)
+
+
+@router.get("/api/characters/{role}/memories")
+def api_get_memories(role: str, request: Request):
+    """获取角色的记忆（短期和长期）"""
+    user = _require_user(request)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    
+    role = normalize_role_name(role)
+    
+    # 获取角色ID
+    char_id = get_character_id(user.get('uid'), role)
+    if not char_id:
+        return JSONResponse({"error": "角色不存在"}, status_code=404)
+    
+    try:
+        # 从数据库加载记忆
+        memories = load_character_memories(char_id)
+        return {
+            "short_term": memories.get('short_term', []),
+            "long_term": memories.get('long_term', [])
+        }
+    except Exception as e:
+        print(f"[ERROR] 加载记忆失败: {e}")
+        return {"short_term": [], "long_term": []}
+
+
+@router.put("/api/characters/{role}/memories")
+async def api_put_memories(role: str, request: Request):
+    """保存角色的记忆（短期和长期）"""
+    user = _require_user(request)
+    if not user:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    
+    role = normalize_role_name(role)
+    
+    # 获取角色ID
+    char_id = get_character_id(user.get('uid'), role)
+    if not char_id:
+        return JSONResponse({"error": "角色不存在"}, status_code=404)
+    
+    try:
+        payload = await request.json()
+        short_term = payload.get('short_term', [])
+        long_term = payload.get('long_term', [])
+        
+        # 保存到数据库
+        save_character_memories(char_id, short_term=short_term, long_term=long_term)
+        
+        return {"ok": True}
+    except Exception as e:
+        print(f"[ERROR] 保存记忆失败: {e}")
+        return JSONResponse({"error": f"保存失败: {e}"}, status_code=500)
 

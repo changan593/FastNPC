@@ -53,7 +53,7 @@ export function ManageGroupModal({ show, onClose, activeGroupId, characters, gro
                     onClick={async () => {
                       if (!confirm(`确定移除 ${member.name}？`)) return
                       try {
-                        await api.delete(`/api/groups/${activeGroupId}/members/${member.name}`)
+                        await api.delete(`/api/groups/${activeGroupId}/members/${encodeURIComponent(member.original_name)}`)
                         await loadGroupMemberBriefs()
                       } catch (e: any) {
                         alert(e?.response?.data?.error || '移除失败')
@@ -73,7 +73,7 @@ export function ManageGroupModal({ show, onClose, activeGroupId, characters, gro
             <select value={newMemberName} onChange={e => setNewMemberName(e.target.value)} style={{ flex: 1, padding: '8px', border: '1px solid #e5e7eb', borderRadius: 8 }}>
               <option value="">选择角色</option>
               {characters
-                .filter(c => !groupMemberBriefs.some(m => m.name === c.role))
+                .filter(c => !groupMemberBriefs.some(m => m.original_name === c.role))
                 .map(c => (
                   <option key={c.role} value={c.role}>
                     {c.role}

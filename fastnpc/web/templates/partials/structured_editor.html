@@ -33,6 +33,53 @@
     </aside>
   </div>
 
+  <!-- 记忆管理 -->
+  <div style="margin-top: 2rem;">
+    <div class="card">
+      <h3>角色记忆</h3>
+      <p class="muted" style="margin-bottom: 1rem;">管理角色的短期记忆和长期记忆，每行一条记忆。</p>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label for="stm-editor">
+          <strong>短期记忆 (Short-term Memory)</strong>
+          <small class="muted" style="margin-left: 0.5rem;">最近的对话和经历，会自动整合到长期记忆</small>
+        </label>
+        <textarea 
+          id="stm-editor" 
+          rows="8" 
+          placeholder="每行一条短期记忆..."
+          style="width: 100%; font-family: monospace; font-size: 14px; resize: vertical; margin-top: 0.5rem;"
+        ></textarea>
+        <div class="muted" style="font-size: 12px; margin-top: 0.25rem;">
+          <span id="stm-count">0</span> 条记忆
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <label for="ltm-editor">
+          <strong>长期记忆 (Long-term Memory)</strong>
+          <small class="muted" style="margin-left: 0.5rem;">重要的知识和经历，会长期保留</small>
+        </label>
+        <textarea 
+          id="ltm-editor" 
+          rows="8" 
+          placeholder="每行一条长期记忆..."
+          style="width: 100%; font-family: monospace; font-size: 14px; resize: vertical; margin-top: 0.5rem;"
+        ></textarea>
+        <div class="muted" style="font-size: 12px; margin-top: 0.25rem;">
+          <span id="ltm-count">0</span> 条记忆
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="btn-load-memories" type="button">重新加载</button>
+        <span class="spacer"></span>
+        <button id="btn-save-memories" class="contrast" type="button">保存记忆</button>
+        <span id="memories-save-result" class="muted"></span>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 注入聊天 session
     (function(){
@@ -117,6 +164,72 @@
           else { setStatus('保存失败', false); }
         } catch(e) { setStatus('保存失败: '+e, false); }
       });
+    })();
+
+    // 记忆管理
+    (function(){
+      var stmEditor = document.getElementById('stm-editor');
+      var ltmEditor = document.getElementById('ltm-editor');
+      var stmCount = document.getElementById('stm-count');
+      var ltmCount = document.getElementById('ltm-count');
+      var memoriesSaveResult = document.getElementById('memories-save-result');
+
+      function updateCounts() {
+        var stmLines = stmEditor.value.split('\n').filter(line => line.trim()).length;
+        var ltmLines = ltmEditor.value.split('\n').filter(line => line.trim()).length;
+        stmCount.textContent = stmLines;
+        ltmCount.textContent = ltmLines;
+      }
+
+      function setMemoriesStatus(text, ok){
+        memoriesSaveResult.textContent = text || '';
+        memoriesSaveResult.style.color = ok ? 'var(--success)' : 'var(--muted)';
+      }
+
+      async function loadMemories() {
+        try {
+          const res = await fetch('/api/characters/{{ role }}/memories');
+          const data = await res.json();
+          stmEditor.value = (data.short_term || []).join('\n');
+          ltmEditor.value = (data.long_term || []).join('\n');
+          updateCounts();
+          setMemoriesStatus('已加载', true);
+          setTimeout(() => setMemoriesStatus('', false), 2000);
+        } catch(e) {
+          setMemoriesStatus('加载失败: '+e, false);
+        }
+      }
+
+      async function saveMemories() {
+        try {
+          var shortTerm = stmEditor.value.split('\n').filter(line => line.trim());
+          var longTerm = ltmEditor.value.split('\n').filter(line => line.trim());
+          
+          const res = await fetch('/api/characters/{{ role }}/memories', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ short_term: shortTerm, long_term: longTerm })
+          });
+          const j = await res.json();
+          if (j && j.ok) {
+            updateCounts();
+            setMemoriesStatus('已保存', true);
+            setTimeout(() => setMemoriesStatus('', false), 2000);
+          } else {
+            setMemoriesStatus('保存失败', false);
+          }
+        } catch(e) {
+          setMemoriesStatus('保存失败: '+e, false);
+        }
+      }
+
+      stmEditor.addEventListener('input', updateCounts);
+      ltmEditor.addEventListener('input', updateCounts);
+      document.getElementById('btn-load-memories').addEventListener('click', loadMemories);
+      document.getElementById('btn-save-memories').addEventListener('click', saveMemories);
+
+      // 初始加载记忆
+      loadMemories();
     })();
   </script>
 </article>

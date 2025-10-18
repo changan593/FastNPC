@@ -103,7 +103,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setAdminSelectedChar(null)
       setAdminMessages([])
       setAdminTab('characters')
-    } catch {}
+    } catch (e: any) {
+      console.error('加载用户角色失败:', e)
+      alert(e?.response?.data?.error || '加载用户角色失败')
+    }
   }
 
   async function loadAdminUserGroups(uid: number) {
@@ -114,7 +117,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setAdminSelectedGroup(null)
       setAdminGroupMessages([])
       setAdminTab('groups')
-    } catch {}
+    } catch (e: any) {
+      console.error('加载用户群聊失败:', e)
+      alert(e?.response?.data?.error || '加载用户群聊失败')
+    }
   }
 
   async function loadAdminGroup(groupId: number) {
@@ -123,7 +129,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       setAdminSelectedGroup(detail.group)
       const { data: msgs } = await api.get(`/admin/groups/${groupId}/messages`)
       setAdminGroupMessages(msgs.messages || [])
-    } catch {}
+    } catch (e: any) {
+      console.error('加载群聊详情失败:', e)
+      alert(e?.response?.data?.error || '加载群聊详情失败')
+    }
   }
 
   async function loadAdminFeedbacks() {
@@ -198,7 +207,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const { data: msgs } = await api.get(`/admin/users/${uid}/characters/${cid}/messages`)
       setAdminMessages(msgs.messages || [])
       setAdminTab('detail')
-    } catch {}
+    } catch (e: any) {
+      console.error('加载角色详情失败:', e)
+      alert(e?.response?.data?.error || '加载角色详情失败')
+    }
   }
 
   return (

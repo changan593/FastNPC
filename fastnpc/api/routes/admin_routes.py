@@ -11,7 +11,7 @@ from typing import List
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from fastnpc.config import CHAR_DIR
+from fastnpc.config import CHAR_DIR, USE_POSTGRESQL
 from fastnpc.api.auth import (
     list_users,
     list_characters,
@@ -25,6 +25,7 @@ from fastnpc.api.auth import (
     list_group_messages,
     list_group_members,
 )
+from fastnpc.api.auth.db_utils import _return_conn
 from fastnpc.api.utils import _require_admin, _require_user, _structured_path_for_role, _load_character_profile, _read_memories_from_profile
 from fastnpc.utils.roles import normalize_role_name
 from fastnpc.chat.prompt_builder import build_chat_system_prompt
@@ -70,16 +71,16 @@ def admin_cleanup_characters(uid: int, request: Request):
             struct_path = _structured_path_for_role(char_name, user_id=uid)
             if not os.path.exists(struct_path):
                 # 文件不存在，删除数据库记录
-                cur.execute("DELETE FROM characters WHERE id=?", (char['id'],))
+                cur.execute("DELETE FROM characters WHERE id=%s", (char['id'],))
                 # 同时删除相关的消息记录
-                cur.execute("DELETE FROM messages WHERE character_id=?", (char['id'],))
+                cur.execute("DELETE FROM messages WHERE character_id=%s", (char['id'],))
                 deleted_count += 1
                 deleted_names.append(char_name)
                 print(f"[INFO] 已清理不存在的角色: {char_name} (用户{uid})")
         
         conn.commit()
     finally:
-        conn.close()
+        _return_conn(conn)
     
     return {
         "ok": True,
@@ -132,34 +133,59 @@ def admin_chat_compiled(request: Request, msg_id: int, uid: int = 0, cid: int = 
     ctx_max_chat = int(s.get('ctx_max_chat') or 3000)
     ctx_max_stm = int(s.get('ctx_max_stm') or 3000)
     ctx_max_ltm = int(s.get('ctx_max_ltm') or 4000)
-    # 解析角色/角色ID（支持两种调用：指定 uid+cid 或仅 role= 当前登录者角色）
+    # 解析角色/角色ID（支持多种调用方式）
     role = normalize_role_name(role) if role else role
     detail = None
+    
+    print(f"[DEBUG] admin_chat_compiled: msg_id={msg_id}, uid={uid}, cid={cid}, role={role}")
+    
+    # 情况1: 提供了 uid 和 cid (管理员查看某用户的某角色)
     if uid and cid:
+        print(f"[DEBUG] 情况1: uid={uid}, cid={cid}")
         try:
             detail = get_character_detail(uid, cid)
             role = normalize_role_name(str(detail.get('name') or role))
-        except Exception:
+        except Exception as e:
+            print(f"[ERROR] 获取角色详情失败: {e}")
             detail = None
+    # 情况2: 提供了 uid 和 role 但没有 cid (管理员查看某用户的某角色，通过名称)
+    elif uid and role:
+        print(f"[DEBUG] 情况2: uid={uid}, role={role}")
+        role = normalize_role_name(role)
+        cid = get_or_create_character(uid, role)
+        print(f"[DEBUG] 获取到 cid={cid}")
+    # 情况3: 只提供了 role (使用当前管理员自己的角色)
     else:
-        # 使用当前管理员自己的 uid 与 role 获取/创建角色ID
+        print(f"[DEBUG] 情况3: 只有 role={role}")
         cu = _require_user(request)
         if not cu:
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         uid = int(cu['uid'])
-        role = normalize_role_name(role)
+        role = normalize_role_name(role) if role else ""
+        if not role:
+            return JSONResponse({"error": "缺少角色名称"}, status_code=400)
         cid = get_or_create_character(uid, role)
+    
+    print(f"[DEBUG] 最终: uid={uid}, cid={cid}, role={role}")
+    
     try:
-        # 只读取未压缩的消息（模拟实际发送给LLM的上下文）
-        items = list_messages(uid, cid, limit=2000, only_uncompressed=True)
-    except Exception:
+        # 管理员查看时读取所有消息（包括已压缩的）
+        items = list_messages(uid, cid, limit=2000, only_uncompressed=False)
+        print(f"[DEBUG] 查询到 {len(items)} 条消息")
+    except Exception as e:
+        print(f"[ERROR] 查询消息失败: {e}")
         items = []
     # 仅取到 msg_id 为止的历史
     hist = [it for it in items if int(it.get('id', 0)) <= int(msg_id)]
+    print(f"[DEBUG] 过滤后 {len(hist)} 条消息，查找 msg_id={msg_id}")
     
     # 定位该条用户消息
     target_msg = next((it for it in hist if int(it.get('id', 0)) == int(msg_id) and str(it.get('role', '')) == 'user'), None)
     if not target_msg:
+        print(f"[ERROR] 找不到消息 msg_id={msg_id}")
+        # 打印一些消息 ID 用于调试
+        msg_ids = [int(it.get('id', 0)) for it in hist]
+        print(f"[DEBUG] 现有消息ID: {msg_ids[:10]}")
         return JSONResponse({"error": "not_found"}, status_code=404)
     
     user_msg = str(target_msg.get('content', ''))
@@ -245,22 +271,28 @@ def admin_group_detail(group_id: int, request: Request):
     
     # 获取群聊基本信息（需要验证权限，但管理员可以查看任何群聊）
     # 我们需要修改一下逻辑，先获取群聊的user_id
-    from fastnpc.api.auth import _get_conn
+    from fastnpc.api.auth import _get_conn, _row_to_dict
     
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT user_id, name, created_at, updated_at FROM group_chats WHERE id=?", (group_id,))
+        cur.execute("SELECT user_id, name, created_at, updated_at FROM group_chats WHERE id=%s", (group_id,))
         row = cur.fetchone()
         if not row:
             return JSONResponse({"error": "群聊不存在"}, status_code=404)
         
+        # 正确处理行数据（PostgreSQL 和 SQLite 的差异）
+        if USE_POSTGRESQL:
+            row_dict = _row_to_dict(row, cur)
+        else:
+            row_dict = dict(row)
+        
         group_info = {
             "id": group_id,
-            "user_id": row['user_id'],
-            "name": row['name'],
-            "created_at": row['created_at'],
-            "updated_at": row['updated_at']
+            "user_id": row_dict['user_id'],
+            "name": row_dict['name'],
+            "created_at": row_dict['created_at'],
+            "updated_at": row_dict['updated_at']
         }
         
         # 获取成员列表
@@ -269,7 +301,7 @@ def admin_group_detail(group_id: int, request: Request):
         
         return {"group": group_info}
     finally:
-        conn.close()
+        _return_conn(conn)
 
 
 @router.get('/admin/groups/{group_id}/messages')

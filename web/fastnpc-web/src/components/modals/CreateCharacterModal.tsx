@@ -22,6 +22,8 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
     createDone,
     setCreateDone,
     setCreating,
+    currentTaskId,
+    cancelCurrentTask,
     exportFacts,
     setExportFacts,
     exportBullets,
@@ -36,7 +38,13 @@ export function CreateCharacterModal({ show, onClose, onOpenPoly }: CreateCharac
     polyChoiceIdx,
   } = useCharacter()
 
-  function handleClose() {
+  async function handleClose() {
+    // 如果正在创建且有任务ID，先取消任务
+    if (creating && currentTaskId) {
+      await cancelCurrentTask()
+      console.log('[INFO] 已取消创建任务')
+    }
+    
     setNewRole('')
     setProgress(null)
     setCreateDone(false)
