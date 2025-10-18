@@ -457,6 +457,69 @@ def _extract_options_dynamic_with_playwright(keyword: str, timeout_ms: int = 120
                     results.append({'text': text, 'href': abs_url})
                 except Exception:
                     continue
+            
+            # 如果没有找到同名词选项，提取当前页面信息作为唯一选项
+            if not results:
+                try:
+                    print(f"[INFO] 没有找到同名词面板，提取当前页面信息作为选项")
+                    
+                    # 提取标题
+                    title = keyword  # 默认使用关键词
+                    try:
+                        title_elem = page.locator('dd.lemmaWgt-lemmaTitle-title h1, h1').first
+                        if title_elem.count() > 0:
+                            title = title_elem.inner_text().strip()
+                            print(f"[INFO] 提取到标题: {title}")
+                    except Exception as e:
+                        print(f"[DEBUG] 提取标题失败: {e}")
+                    
+                    # 获取当前URL
+                    current_url = page.url
+                    print(f"[INFO] 当前URL: {current_url}")
+                    
+                    # 提取简介
+                    summary = ""
+                    summary_selectors = [
+                        'div.lemmaSummary_GJZu8',
+                        'div.lemmaWgt-lemmaSummary',
+                        'div[class*="lemma"][class*="summary"]',
+                        'div.J-summary',
+                    ]
+                    for selector in summary_selectors:
+                        try:
+                            elem = page.locator(selector).first
+                            if elem.count() > 0:
+                                summary = elem.inner_text().strip()
+                                if summary:
+                                    print(f"[INFO] 提取到简介 (长度: {len(summary)})")
+                                    break
+                        except Exception:
+                            continue
+                    
+                    # 如果上述都没找到，尝试meta description
+                    if not summary:
+                        try:
+                            meta = page.locator('meta[name="description"]').first
+                            if meta.count() > 0:
+                                summary = meta.get_attribute('content') or ""
+                                if summary:
+                                    print(f"[INFO] 从meta标签提取到简介 (长度: {len(summary)})")
+                        except Exception:
+                            pass
+                    
+                    # 构建返回项
+                    if title and current_url:
+                        normalized_url = _normalize_item_url(current_url)
+                        if normalized_url:
+                            results.append({
+                                'text': title,
+                                'href': normalized_url,
+                                'snippet': summary[:200] if summary else ""  # 限制长度
+                            })
+                            print(f"[INFO] 已添加当前页面作为选项: {title}")
+                except Exception as e:
+                    print(f"[DEBUG] 提取当前页面信息失败: {e}")
+            
             browser.close()
         return results
     except Exception:
