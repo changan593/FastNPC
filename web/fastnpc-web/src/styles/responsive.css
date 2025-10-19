@@ -2,6 +2,19 @@
    响应式设计 - Mobile Responsive
    ======================================== */
 
+/* ===== 默认状态（所有设备）===== */
+.mobile-overlay {
+  display: none;  /* 默认隐藏遮罩层 */
+}
+
+.mobile-menu-btn {
+  display: none;  /* 桌面端默认隐藏汉堡菜单 */
+}
+
+.mobile-info-btn {
+  display: none;  /* 桌面端默认隐藏简介按钮 */
+}
+
 /* ========== 移动端适配（768px 以下）========== */
 @media (max-width: 768px) {
   /* ===== 主布局 ===== */
@@ -30,6 +43,7 @@
   
   /* ===== 遮罩层 ===== */
   .mobile-overlay {
+    display: none;  /* 移动端默认也隐藏 */
     position: fixed;
     top: 0;
     left: 0;
@@ -37,10 +51,11 @@
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 999;
+    pointer-events: auto;  /* 确保可以点击 */
   }
   
   .layout.mobile-sidebar-open .mobile-overlay {
-    display: block;
+    display: block;  /* 侧边栏打开时显示 */
   }
   
   /* ===== 隐藏右侧信息栏 ===== */
@@ -51,31 +66,104 @@
   
   /* ===== 聊天区顶部汉堡菜单 ===== */
   .chat-head {
-    padding: 10px var(--spacing-md);
+    padding: 8px var(--spacing-md);
+  }
+  
+  .chat-head .muted {
+    display: none;  /* 移动端隐藏用户名，节省空间 */
   }
   
   .mobile-menu-btn {
     display: flex !important;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: #fff;
     cursor: pointer;
     margin-right: var(--spacing-sm);
     font-size: 20px;
+    padding: 0;
+    transition: background-color 0.15s ease;
+  }
+  
+  .mobile-menu-btn:active {
+    background-color: var(--color-gray-100);
+  }
+  
+  /* ===== 移动端简介按钮 ===== */
+  .mobile-info-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    min-height: 32px;
+    border: 1px solid var(--color-primary-600);
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-600);
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  
+  .mobile-info-btn:active {
+    background-color: var(--color-primary-700);
   }
   
   .chat-head .title {
     flex: 1;
-    font-size: var(--font-size-lg);
+    font-size: 15px;  /* 减小标题字体 */
+    font-weight: 600;
+  }
+  
+  .chat-head .settings {
+    padding: 6px 10px;
+    font-size: 13px;  /* 减小按钮字体 */
+    min-height: 32px;
+  }
+  
+  /* ===== 触摸优化 ===== */
+  
+  /* 移除点击高亮 */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* 输入框和可编辑内容允许选择 */
+  input, 
+  textarea, 
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  
+  /* 滚动优化（iOS惯性滚动） */
+  .chat-body,
+  .role-list,
+  .info-content,
+  .admin-content {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  
+  /* 防止iOS自动缩放输入框 */
+  input, 
+  textarea, 
+  select {
+    font-size: 16px !important;
   }
   
   /* ===== 聊天消息 ===== */
   .msg .bubble {
     max-width: 85%;
+    font-size: 14px;  /* 调整消息字体大小 */
   }
   
   /* ===== 底部创建按钮 ===== */
@@ -228,12 +316,14 @@
   }
   
   .group-msg-item .sender-name {
-    font-size: 13px;
+    font-size: 12px;  /* 减小发送者名字 */
+    font-weight: 500;
   }
   
   .group-msg-item .bubble {
-    font-size: var(--font-size-base);
-    padding: var(--spacing-sm) 10px;
+    font-size: 14px;  /* 调整消息字体 */
+    padding: 8px 12px;
+    line-height: 1.5;
   }
   
   /* ===== 聊天输入框 ===== */
@@ -257,15 +347,16 @@
   
   /* ===== 侧边栏列表 ===== */
   .role-list li {
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: 10px var(--spacing-md);
   }
   
   .role-list .name {
-    font-size: var(--font-size-base);
+    font-size: 14px;  /* 调整角色名字体 */
+    font-weight: 500;
   }
   
   .role-list .time {
-    font-size: var(--font-size-xs);
+    font-size: 11px;  /* 调整时间字体 */
   }
   
   /* ===== 管理员群聊消息适配 ===== */
@@ -349,6 +440,46 @@
   
   .feedback-actions {
     padding: var(--spacing-md) var(--spacing-lg);
+  }
+  
+  /* ===== 移动端简介模态框 ===== */
+  .mobile-info-dialog {
+    width: 90vw !important;
+    max-width: 500px;
+    max-height: 80vh;
+  }
+  
+  .mobile-info-dialog .member-brief {
+    background: var(--bg);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 14px;  /* 调整字体大小 */
+  }
+  
+  .mobile-info-dialog .member-name {
+    font-size: 15px !important;
+  }
+  
+  /* ===== 移动端操作按钮 ===== */
+  .mobile-action-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--color-gray-100);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  
+  .mobile-action-btn:active {
+    background: var(--color-gray-200);
+    transform: scale(0.98);
   }
 }
 

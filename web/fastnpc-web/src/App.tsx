@@ -97,6 +97,7 @@ function AppContent() {
   const [maxGroupReplyRounds, setMaxGroupReplyRounds] = useState<string>('3')
   const [userAvatarUrl, setUserAvatarUrl] = useState<string>('')
   const [showPromptManagement, setShowPromptManagement] = useState(false)
+  const [showMobileInfo, setShowMobileInfo] = useState(false)
 
   const chatBodyRef = useRef<HTMLDivElement | null>(null)
   const prevActiveRoleRef = useRef<string>('')
@@ -315,7 +316,7 @@ function AppContent() {
       {activeType === 'group' && activeGroupId && !adminView ? (
         <main className="chat">
           <header className="chat-head">
-            <button className="mobile-menu-btn" onClick={() => setShowMobileSidebar(true)} style={{ display: 'none' }}>
+            <button className="mobile-menu-btn" onClick={() => setShowMobileSidebar(true)}>
               ☰
             </button>
             <div className="title">
@@ -323,6 +324,9 @@ function AppContent() {
               <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>({groupMemberBriefs.length} 成员)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button className="mobile-info-btn" onClick={() => setShowMobileInfo(true)}>
+                简介
+              </button>
               <span className="muted">{user.username}</span>
               <button className={`settings ${showSettings ? 'active' : ''}`} onClick={() => setShowSettings(!showSettings)}>
                 设置
@@ -431,11 +435,14 @@ function AppContent() {
       ) : (
         <main className="chat">
           <header className="chat-head">
-            <button className="mobile-menu-btn" onClick={() => setShowMobileSidebar(true)} style={{ display: 'none' }}>
+            <button className="mobile-menu-btn" onClick={() => setShowMobileSidebar(true)}>
               ☰
             </button>
             <div className="title">{activeRole || '选择一个角色开始聊天'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button className="mobile-info-btn" onClick={() => setShowMobileInfo(true)}>
+                简介
+              </button>
               <span className="muted">{user.username}</span>
               <button className={`settings ${showSettings ? 'active' : ''}`} onClick={() => setShowSettings(!showSettings)}>
                 设置
@@ -627,6 +634,106 @@ function AppContent() {
       <InspectModal show={showInspect} text={inspectText} onClose={() => setShowInspect(false)} />
 
       <PromptManagementModal show={showPromptManagement} onClose={() => setShowPromptManagement(false)} />
+
+      {/* 移动端简介模态框 */}
+      {showMobileInfo && (
+        <div className="modal" onClick={() => setShowMobileInfo(false)}>
+          <div className="dialog mobile-info-dialog" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px' }}>{activeType === 'character' ? '角色简介' : '成员简介'}</h3>
+              <button onClick={() => setShowMobileInfo(false)} style={{ fontSize: '20px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                ✕
+              </button>
+            </div>
+            {/* 操作按钮 */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button 
+                className="mobile-action-btn"
+                onClick={() => {
+                  setShowMobileInfo(false)
+                  if (activeType === 'character') {
+                    setShowManageChar(true)
+                  } else {
+                    setShowManageGroup(true)
+                  }
+                }}
+              >
+                ⚙️ 管理
+              </button>
+              <button 
+                className="mobile-action-btn"
+                onClick={() => {
+                  setShowMobileInfo(false)
+                  setShowFeedback(true)
+                }}
+              >
+                💬 反馈
+              </button>
+            </div>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {activeType === 'character' && activeRole ? (
+                <div className="member-brief">
+                  <div className="member-name" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    {characters.find(c => c.role === activeRole)?.avatar_url ? (
+                      <img 
+                        src={characters.find(c => c.role === activeRole)?.avatar_url} 
+                        alt={activeRole}
+                        style={{ 
+                          width: '32px', 
+                          height: '32px', 
+                          borderRadius: '6px', 
+                          objectFit: 'cover' 
+                        }}
+                      />
+                    ) : (
+                      '🎭'
+                    )}
+                    <span style={{ fontSize: '18px', fontWeight: '600' }}>{activeRole}</span>
+                  </div>
+                  {charIntro ? (
+                    <div style={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
+                      {charIntro}
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--muted)' }}>暂无简介</div>
+                  )}
+                </div>
+              ) : activeType === 'group' && activeGroupId ? (
+                <div>
+                  {groupMemberBriefs.map((member, idx) => (
+                    <div key={idx} className="member-brief" style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: idx < groupMemberBriefs.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                      <div className="member-name" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        {member.type === 'user' ? (
+                          '👤'
+                        ) : characters.find(c => c.role === member.original_name)?.avatar_url ? (
+                          <img 
+                            src={characters.find(c => c.role === member.original_name)?.avatar_url} 
+                            alt={member.name}
+                            style={{ 
+                              width: '28px', 
+                              height: '28px', 
+                              borderRadius: '6px', 
+                              objectFit: 'cover' 
+                            }}
+                          />
+                        ) : (
+                          '🎭'
+                        )}
+                        <span style={{ fontSize: '16px', fontWeight: '600' }}>{member.name}</span>
+                      </div>
+                      <div style={{ fontSize: '14px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                        {member.brief || '暂无简介'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px' }}>暂无内容</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
               </div>
   )
 }
