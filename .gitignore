@@ -53,6 +53,8 @@ logs/
 # ==================== 用户数据 ====================
 # 角色数据（用户创建的角色文件）
 Characters/
+Avatars/
+Feedbacks/
 
 # ==================== 前端 (Node.js) ====================
 # 依赖
@@ -79,6 +81,9 @@ pnpm-debug.log*
 # VSCode
 .vscode/
 *.code-workspace
+
+# Cursor
+.cursor/
 
 # PyCharm
 .idea/
@@ -122,4 +127,7 @@ Desktop.ini
 # 测试输出
 test_output/
 .pytest_cache/
+
+# 文档归档
+docs/archive/
 

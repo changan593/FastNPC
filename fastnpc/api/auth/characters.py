@@ -30,6 +30,7 @@ def get_or_create_character(user_id: int, name: str) -> int:
         if row:
             row_dict = _row_to_dict(row, cur)
             return int(row_dict['id'])
+        
         now = int(time.time())
         if USE_POSTGRESQL:
             cur.execute(
@@ -37,6 +38,7 @@ def get_or_create_character(user_id: int, name: str) -> int:
                 (user_id, name, '', '', '', now, now),
             )
             character_id = int(cur.fetchone()[0])
+            conn.commit()  # 立即提交事务
         else:
             cur.execute(
                 "INSERT INTO characters(user_id, name, model, source, structured_json, created_at, updated_at) VALUES(%s,%s,%s,%s,%s,%s,%s)",
@@ -46,17 +48,24 @@ def get_or_create_character(user_id: int, name: str) -> int:
             character_id = int(cur.lastrowid)
         
         # 清除相关缓存（创建了新角色）
-        cache = get_redis_cache()
-        cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
-        cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+        # 缓存操作失败不应该影响主流程
+        try:
+            cache = get_redis_cache()
+            cache.delete(f"{CACHE_KEY_CHARACTER_ID}:{user_id}:{name}")
+            cache.delete(f"{CACHE_KEY_CHARACTER_LIST}:{user_id}")
+        except Exception as e:
+            print(f"[WARN] 清除缓存失败: {e}")
         
         return character_id
+    
+    except Exception as e:
+        # 发生异常时回滚事务
+        conn.rollback()
+        raise e
+    
     finally:
-        if not USE_POSTGRESQL:
-            _return_conn(conn)
-        else:
-            conn.commit()
-            _return_conn(conn)
+        # 无论如何都归还连接
+        _return_conn(conn)
 
 
 def get_character_id(user_id: int, name: str) -> Optional[int]:

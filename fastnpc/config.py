@@ -53,8 +53,8 @@ POSTGRES_USER: str = os.environ.get("POSTGRES_USER", "fastnpc")
 POSTGRES_PASSWORD: str | None = os.environ.get("POSTGRES_PASSWORD")
 
 # 数据库连接池配置
-DB_POOL_MIN_CONN: int = int(os.environ.get("DB_POOL_MIN_CONN", "5"))
-DB_POOL_MAX_CONN: int = int(os.environ.get("DB_POOL_MAX_CONN", "20"))
+DB_POOL_MIN_CONN: int = int(os.environ.get("DB_POOL_MIN_CONN", "10"))
+DB_POOL_MAX_CONN: int = int(os.environ.get("DB_POOL_MAX_CONN", "50"))
 
 # Redis 缓存配置
 REDIS_HOST: str = os.environ.get("REDIS_HOST", "localhost")
