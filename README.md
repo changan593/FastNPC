@@ -327,6 +327,32 @@ npm run dev -- --host --port 5173
 
 ## 📚 使用指南
 
+### 📹 视频演示
+
+<div align="center">
+
+#### 用户功能演示
+
+<video src="https://github.com/changan593/FastNPC/raw/main/images/用户.mp4" controls width="100%" style="max-width: 800px;">
+  您的浏览器不支持视频标签。请<a href="images/用户.mp4">点击这里下载视频</a>。
+</video>
+
+*完整的用户功能演示：角色创建、单聊对话、群聊互动*
+
+---
+
+#### 管理员功能演示
+
+<video src="https://github.com/changan593/FastNPC/raw/main/images/管理员.mp4" controls width="100%" style="max-width: 800px;">
+  您的浏览器不支持视频标签。请<a href="images/管理员.mp4">点击这里下载视频</a>。
+</video>
+
+*管理员高级功能：提示词管理、测试用例管理、测试执行与评估*
+
+</div>
+
+---
+
 ### 创建角色
 
 1. 点击左下角 **"📝 角色"** 按钮

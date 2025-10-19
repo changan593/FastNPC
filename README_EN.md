@@ -297,6 +297,32 @@ After logging in, users can configure in settings:
 
 ## 📚 User Guide
 
+### 📹 Video Demonstrations
+
+<div align="center">
+
+#### User Features Demo
+
+<video src="https://github.com/changan593/FastNPC/raw/main/images/用户.mp4" controls width="100%" style="max-width: 800px;">
+  Your browser does not support the video tag. Please <a href="images/用户.mp4">click here to download the video</a>.
+</video>
+
+*Complete user features demonstration: Character creation, single chat, group chat interaction*
+
+---
+
+#### Admin Features Demo
+
+<video src="https://github.com/changan593/FastNPC/raw/main/images/管理员.mp4" controls width="100%" style="max-width: 800px;">
+  Your browser does not support the video tag. Please <a href="images/管理员.mp4">click here to download the video</a>.
+</video>
+
+*Advanced admin features: Prompt management, test case management, test execution & evaluation*
+
+</div>
+
+---
+
 ### Create Character
 
 1. Click the **"📝 Character"** button in the bottom left
