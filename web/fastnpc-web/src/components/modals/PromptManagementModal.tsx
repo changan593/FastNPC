@@ -138,6 +138,22 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
   const [testLoading, setTestLoading] = useState(false)
   const [executing, setExecuting] = useState(false)
   
+  // 测试用例编辑/创建状态
+  const [isEditing, setIsEditing] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    version: '1.0.0',
+    category: 'SINGLE_CHAT',
+    prompt_category: '',
+    prompt_sub_category: '',
+    target_type: 'character',
+    target_id: '',
+    test_content: '',
+    expected_behavior: ''
+  })
+  
   // 测试配置编辑状态
   const [editingConfig, setEditingConfig] = useState(false)
   const [configCtxMaxChat, setConfigCtxMaxChat] = useState('')
@@ -443,6 +459,170 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
       loadTestConfig(selectedTestCase)
     }
     setEditingConfig(false)
+  }
+  
+  // ===== 测试用例CRUD操作 =====
+  
+  // 开始创建新测试用例
+  function handleStartCreate() {
+    setIsCreating(true)
+    setIsEditing(false)
+    setEditFormData({
+      name: '',
+      description: '',
+      version: '1.0.0',
+      category: testCategory,
+      prompt_category: '',
+      prompt_sub_category: '',
+      target_type: selectedTarget?.type || 'character',
+      target_id: selectedTarget?.id || '',
+      test_content: '',
+      expected_behavior: ''
+    })
+  }
+  
+  // 开始编辑测试用例
+  function handleStartEdit() {
+    if (!selectedTestCase) return
+    
+    setIsEditing(true)
+    setIsCreating(false)
+    setEditFormData({
+      name: selectedTestCase.name,
+      description: selectedTestCase.description || '',
+      version: selectedTestCase.version,
+      category: selectedTestCase.category,
+      prompt_category: selectedTestCase.prompt_category || '',
+      prompt_sub_category: selectedTestCase.prompt_sub_category || '',
+      target_type: selectedTestCase.target_type,
+      target_id: selectedTestCase.target_id,
+      test_content: typeof selectedTestCase.test_content === 'string' 
+        ? selectedTestCase.test_content 
+        : JSON.stringify(selectedTestCase.test_content, null, 2),
+      expected_behavior: selectedTestCase.expected_behavior || ''
+    })
+  }
+  
+  // 保存测试用例（创建或更新）
+  async function handleSaveTestCase() {
+    try {
+      // 验证必填字段
+      if (!editFormData.name.trim()) {
+        alert('请输入测试用例名称')
+        return
+      }
+      if (!editFormData.target_id.trim()) {
+        alert('请输入目标ID')
+        return
+      }
+      if (!editFormData.test_content.trim()) {
+        alert('请输入测试内容')
+        return
+      }
+      
+      // 解析测试内容为JSON
+      let parsedTestContent
+      try {
+        parsedTestContent = JSON.parse(editFormData.test_content)
+      } catch {
+        parsedTestContent = { messages: [editFormData.test_content] }
+      }
+      
+      const payload = {
+        name: editFormData.name.trim(),
+        description: editFormData.description.trim(),
+        version: editFormData.version,
+        category: editFormData.category,
+        prompt_category: editFormData.prompt_category || undefined,
+        prompt_sub_category: editFormData.prompt_sub_category || undefined,
+        target_type: editFormData.target_type,
+        target_id: editFormData.target_id.trim(),
+        test_content: parsedTestContent,
+        expected_behavior: editFormData.expected_behavior.trim() || undefined
+      }
+      
+      let response
+      if (isCreating) {
+        // 创建新测试用例
+        response = await fetch('/admin/test-cases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        })
+      } else if (isEditing && selectedTestCase) {
+        // 更新现有测试用例
+        response = await fetch(`/admin/test-cases/${selectedTestCase.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        })
+      }
+      
+      if (response && response.ok) {
+        const result = await response.json()
+        alert(isCreating ? '测试用例已创建！' : '测试用例已更新！')
+        
+        // 重新加载测试用例列表
+        await loadTestCases(testCategory)
+        
+        // 如果是创建，选择新创建的测试用例
+        if (isCreating && result.test_case_id) {
+          const newCase = testCases.find(tc => tc.id === result.test_case_id)
+          if (newCase) {
+            setSelectedTestCase(newCase)
+          }
+        }
+        
+        // 关闭编辑模式
+        setIsCreating(false)
+        setIsEditing(false)
+      } else {
+        const error = response ? await response.text() : '未知错误'
+        alert(`保存失败: ${error}`)
+      }
+    } catch (error) {
+      console.error('保存测试用例失败:', error)
+      alert(`保存失败: ${error}`)
+    }
+  }
+  
+  // 取消编辑/创建
+  function handleCancelEdit() {
+    setIsCreating(false)
+    setIsEditing(false)
+  }
+  
+  // 删除测试用例
+  async function handleDeleteTestCase() {
+    if (!selectedTestCase) return
+    
+    const confirmMsg = `确定要删除测试用例 "${selectedTestCase.name}" 吗？\n此操作不可恢复！`
+    if (!confirm(confirmMsg)) return
+    
+    try {
+      const response = await fetch(`/admin/test-cases/${selectedTestCase.id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      
+      if (response.ok) {
+        alert('测试用例已删除！')
+        
+        // 清除选中状态
+        setSelectedTestCase(null)
+        
+        // 重新加载测试用例列表
+        await loadTestCases(testCategory)
+      } else {
+        const error = await response.text()
+        alert(`删除失败: ${error}`)
+      }
+    } catch (error) {
+      console.error('删除测试用例失败:', error)
+      alert(`删除失败: ${error}`)
+    }
   }
   
   // 格式化工具函数
@@ -1238,17 +1418,130 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
             </div>
                           </div>
                           
-          {/* 中间：测试用例详情 */}
+          {/* 中间：测试用例详情/编辑 */}
           <div className="editor-area">
-            {!selectedTestCase ? (
+            {!selectedTestCase && !isCreating ? (
               <div className="empty-state">
                 <p>👈 请从左侧选择一个测试目标</p>
                 <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '8px' }}>
                   选择角色或群聊后，在右侧选择具体的测试用例
                 </p>
+                <button 
+                  onClick={handleStartCreate}
+                  className="btn-primary"
+                  style={{ marginTop: '20px' }}
+                >
+                  ➕ 创建新测试用例
+                </button>
               </div>
-            ) : (
+            ) : isEditing || isCreating ? (
               <>
+                {/* 编辑/创建表单 */}
+                <div className="editor-header">
+                  <h3>{isCreating ? '➕ 创建测试用例' : '✏️ 编辑测试用例'}</h3>
+                  <div className="editor-actions">
+                    <button onClick={handleSaveTestCase} className="btn-primary">
+                      💾 保存
+                    </button>
+                    <button onClick={handleCancelEdit} className="btn-secondary">
+                      ✕ 取消
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="editor-fields" style={{ overflowY: 'auto' }}>
+                  <label>
+                    测试用例名称 *
+                    <input
+                      type="text"
+                      value={editFormData.name}
+                      onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                      placeholder="例如：特朗普-政治话题测试"
+                    />
+                  </label>
+                  
+                  <label>
+                    描述
+                    <textarea
+                      value={editFormData.description}
+                      onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
+                      rows={3}
+                      placeholder="测试用例的描述..."
+                    />
+                  </label>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <label>
+                      版本
+                      <input
+                        type="text"
+                        value={editFormData.version}
+                        onChange={(e) => setEditFormData({...editFormData, version: e.target.value})}
+                        placeholder="1.0.0"
+                      />
+                    </label>
+                    
+                    <label>
+                      测试分类 *
+                      <select
+                        value={editFormData.category}
+                        onChange={(e) => setEditFormData({...editFormData, category: e.target.value})}
+                      >
+                        {TEST_CATEGORIES.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <label>
+                      目标类型 *
+                      <select
+                        value={editFormData.target_type}
+                        onChange={(e) => setEditFormData({...editFormData, target_type: e.target.value})}
+                      >
+                        <option value="character">角色 (character)</option>
+                        <option value="group">群聊 (group)</option>
+                      </select>
+                    </label>
+                    
+                    <label>
+                      目标ID *
+                      <input
+                        type="text"
+                        value={editFormData.target_id}
+                        onChange={(e) => setEditFormData({...editFormData, target_id: e.target.value})}
+                        placeholder="角色或群聊的ID"
+                      />
+                    </label>
+                  </div>
+                  
+                  <label>
+                    测试内容 * (JSON格式)
+                    <textarea
+                      value={editFormData.test_content}
+                      onChange={(e) => setEditFormData({...editFormData, test_content: e.target.value})}
+                      rows={8}
+                      placeholder='{"messages": ["你好", "你觉得..."]}'
+                      style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                    />
+                  </label>
+                  
+                  <label>
+                    期望行为
+                    <textarea
+                      value={editFormData.expected_behavior}
+                      onChange={(e) => setEditFormData({...editFormData, expected_behavior: e.target.value})}
+                      rows={3}
+                      placeholder="描述期望的输出或行为..."
+                    />
+                  </label>
+                </div>
+              </>
+            ) : selectedTestCase ? (
+              <>
+                {/* 查看模式 */}
                 <div className="editor-header">
                   <div>
                     <h3>{selectedTestCase.name}</h3>
@@ -1258,19 +1551,31 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     </div>
                   </div>
                   <div className="editor-actions">
-                  <button
-                    className="btn-primary"
+                    <button
+                      className="btn-primary"
                       onClick={handleExecuteTest}
                       disabled={executing}
                     >
                       {executing ? '⏳ 执行中...' : '▶️ 执行测试'}
                     </button>
                     <button 
+                      onClick={handleStartEdit}
+                      className="btn-secondary"
+                    >
+                      ✏️ 编辑
+                    </button>
+                    <button 
+                      onClick={handleDeleteTestCase}
+                      style={{ background: '#ef4444', color: 'white' }}
+                    >
+                      🗑️ 删除
+                    </button>
+                    <button 
                       onClick={handleResetState}
                       style={{ background: '#f59e0b', color: 'white' }}
                     >
                       🔄 重置状态
-                  </button>
+                    </button>
                   </div>
                 </div>
 
@@ -1462,12 +1767,23 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                   </div>
                 </div>
               </>
-            )}
+            ) : null}
           </div>
 
           {/* 右侧：测试用例列表 */}
           <div className="test-panel">
-            <h3>📋 测试用例列表</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0 }}>📋 测试用例列表</h3>
+              {selectedTarget && (
+                <button
+                  onClick={handleStartCreate}
+                  className="btn-primary"
+                  style={{ padding: '6px 12px', fontSize: '13px' }}
+                >
+                  ➕ 新建
+                </button>
+              )}
+            </div>
             
             {!selectedTarget ? (
               <div className="empty-state">

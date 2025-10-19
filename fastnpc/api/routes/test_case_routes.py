@@ -392,6 +392,44 @@ async def update_test_case(id: int, request: Request):
         _return_conn(conn)
 
 
+@router.delete('/admin/test-cases/{id}')
+async def delete_test_case(id: int, request: Request):
+    """删除测试用例"""
+    user = _require_admin(request)
+    if not user:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        placeholder = "%s" if USE_POSTGRESQL else "?"
+        
+        # 检查测试用例是否存在
+        cur.execute(f"SELECT * FROM test_cases WHERE id = {placeholder}", (id,))
+        test_case = cur.fetchone()
+        if not test_case:
+            return JSONResponse({"error": "测试用例不存在"}, status_code=404)
+        
+        # 删除相关的测试执行记录
+        cur.execute(f"DELETE FROM test_executions WHERE test_case_id = {placeholder}", (id,))
+        
+        # 删除测试用例
+        cur.execute(f"DELETE FROM test_cases WHERE id = {placeholder}", (id,))
+        
+        conn.commit()
+        return {"ok": True, "message": "删除成功"}
+    
+    except Exception as e:
+        print(f"[ERROR] 删除测试用例失败: {e}")
+        import traceback
+        traceback.print_exc()
+        conn.rollback()
+        return JSONResponse({"error": f"删除失败: {e}"}, status_code=500)
+    
+    finally:
+        _return_conn(conn)
+
+
 @router.post('/admin/test-cases/{id}/activate')
 async def activate_test_case(id: int, request: Request):
     """激活测试用例版本"""
