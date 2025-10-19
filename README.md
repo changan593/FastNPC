@@ -51,9 +51,10 @@ FastNPC 是一个创新的 AI 角色自动化构建平台，能够从百度百�
   - 智能选择候选词条
   
 - **结构化处理**
-  - 8大类角色画像：基础身份、个性行为、背景故事、知识能力、对话交互、任务功能、环境世界观、系统控制
+  - 9大类角色画像：基础身份信息、性格特质、背景故事、外貌描述、行为习惯、人际关系、技能特长、价值观、情感状态
   - 并发生成优化（可配置并发度）
   - 自动生成角色简介
+  - 支持头像上传（图片裁剪、压缩、格式转换）
 
 ### 💬 对话系统
 
@@ -76,17 +77,72 @@ FastNPC 是一个创新的 AI 角色自动化构建平台，能够从百度百�
 - 管理员后台（用户管理、角色审查）
 - 个性化配置（模型选择、记忆预算、个人简介）
 
+### 🎯 提示词版本管理
+
+- **数据库驱动的提示词系统**
+  - 所有LLM调用的提示词存储在数据库中
+  - 支持9大类结构化生成提示词
+  - 支持单聊、群聊系统提示词
+  - 支持记忆压缩和整合提示词
+  
+- **完整的版本控制**
+  - 每次修改自动创建新版本
+  - 保留完整的版本历史
+  - 一键激活/回滚任意版本
+  - 版本对比和差异查看
+
+### 🧪 测试与评估系统
+
+- **测试用例管理**
+  - 支持角色和群聊测试用例
+  - 完整的CRUD操作
+  - 测试用例版本控制
+  - 快速恢复测试环境
+
+- **智能评估器**
+  - 15个专用评估器（9个结构化生成 + 6个其他类型）
+  - LLM驱动的自动评估
+  - 结构化评分（评分、优点、缺点、建议）
+  - 评估提示词版本管理
+
+- **测试执行**
+  - 单个/批量/按类别执行测试
+  - 灵活的版本选择（提示词+评估器）
+  - 实时执行状态展示
+  - 原始文本+结构化结果双视图
+
+### ⚡ 性能优化
+
+- **数据库支持**
+  - PostgreSQL（生产推荐）
+  - SQLite（开发环境）
+  - 优化的连接池管理（10-50连接）
+  - 自动连接泄漏检测
+
+- **缓存系统**
+  - Redis缓存热点数据
+  - 角色列表缓存
+  - 提示词缓存
+  - 自动缓存失效
+
+- **监控工具**
+  - 连接池状态监控
+  - 压力测试脚本
+  - 实时日志追踪
+
 ---
 
 ## 🛠️ 技术栈
 
 ### 后端
 
-- **框架**: FastAPI 0.112+
-- **数据库**: SQLite3（支持扩展到其他SQL数据库）
+- **框架**: FastAPI 0.112+ & Gunicorn
+- **数据库**: PostgreSQL 13+ / SQLite3
+- **缓存**: Redis 6+
 - **LLM调用**: OpenRouter API（兼容 OpenAI SDK）
 - **爬虫**: Requests + BeautifulSoup4 + Playwright（可选）
 - **认证**: Cookie签名（itsdangerous）+ Bcrypt密码哈希
+- **连接池**: psycopg2 ThreadedConnectionPool
 
 ### 前端
 
@@ -94,17 +150,22 @@ FastNPC 是一个创新的 AI 角色自动化构建平台，能够从百度百�
 - **构建工具**: Vite 7
 - **HTTP客户端**: Axios
 - **样式**: CSS Modules
+- **图片处理**: Cropper.js
 
 ### 核心依赖
 
 ```
 fastapi>=0.112.0          # Web框架
 uvicorn[standard]>=0.30.0 # ASGI服务器
+gunicorn>=23.0.0          # WSGI服务器
 openai>=1.40.0            # LLM SDK
+psycopg2-binary>=2.9.0    # PostgreSQL驱动
+redis>=5.0.0              # Redis客户端
 beautifulsoup4>=4.12.3    # HTML解析
 sqlalchemy>=2.0.32        # ORM
 passlib[bcrypt]>=1.7.4    # 密码加密
 python-dotenv>=1.0.1      # 环境变量管理
+pillow>=10.0.0            # 图片处理
 ```
 
 ---
@@ -141,6 +202,27 @@ FASTNPC_SECRET=your-random-secret-key-here
 # 必需：OpenRouter API密钥
 OPENROUTER_API_KEY=sk-or-v1-xxxxx
 
+# 数据库配置（PostgreSQL推荐用于生产环境）
+USE_POSTGRESQL=false              # 开发环境使用SQLite
+# USE_POSTGRESQL=true             # 生产环境使用PostgreSQL
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=fastnpc
+POSTGRES_USER=fastnpc
+POSTGRES_PASSWORD=your_password
+
+# Redis配置（可选，用于缓存优化）
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# REDIS_PASSWORD=your_redis_password
+
+# 提示词系统（推荐开启）
+USE_DB_PROMPTS=true
+
+# 连接池配置（生产环境优化）
+DB_POOL_MIN_CONN=10
+DB_POOL_MAX_CONN=50
+
 # 可选：管理员用户名
 FASTNPC_ADMIN_USER=admin
 
@@ -149,6 +231,15 @@ FASTNPC_FRONTEND_ORIGIN=http://localhost:5173
 
 # 可选：结构化并发度（默认4，建议2-8）
 FASTNPC_MAX_CONCURRENCY=4
+```
+
+**开发环境快速配置**（使用SQLite，无需PostgreSQL/Redis）：
+```bash
+# 最小配置
+FASTNPC_SECRET=your-secret-key
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
+USE_POSTGRESQL=false
+USE_DB_PROMPTS=false  # 使用硬编码提示词
 ```
 
 ### 3. 安装后端依赖
@@ -207,6 +298,17 @@ npm run dev -- --host --port 5173
 |--------|------|--------|------|
 | `FASTNPC_SECRET` | ✅ | 无 | Cookie签名密钥，必须设置强随机字符串 |
 | `OPENROUTER_API_KEY` | ✅ | 无 | OpenRouter API密钥，用于调用LLM |
+| `USE_POSTGRESQL` | ❌ | `false` | 是否使用PostgreSQL（`true`推荐生产环境） |
+| `POSTGRES_HOST` | ❌ | `localhost` | PostgreSQL主机地址 |
+| `POSTGRES_PORT` | ❌ | `5432` | PostgreSQL端口 |
+| `POSTGRES_DB` | ❌ | `fastnpc` | PostgreSQL数据库名 |
+| `POSTGRES_USER` | ❌ | `fastnpc` | PostgreSQL用户名 |
+| `POSTGRES_PASSWORD` | ❌ | 无 | PostgreSQL密码 |
+| `REDIS_HOST` | ❌ | `localhost` | Redis主机地址（可选） |
+| `REDIS_PORT` | ❌ | `6379` | Redis端口 |
+| `USE_DB_PROMPTS` | ❌ | `true` | 是否使用数据库提示词系统 |
+| `DB_POOL_MIN_CONN` | ❌ | `10` | 数据库连接池最小连接数 |
+| `DB_POOL_MAX_CONN` | ❌ | `50` | 数据库连接池最大连接数 |
 | `FASTNPC_ADMIN_USER` | ❌ | 无 | 管理员用户名，首个注册的该用户名将获得管理员权限 |
 | `FASTNPC_FRONTEND_ORIGIN` | ❌ | `http://localhost:5173` | 前端地址，用于CORS配置，支持逗号分隔多个 |
 | `FASTNPC_MAX_CONCURRENCY` | ❌ | `4` | 结构化并发度，控制同时调用LLM的最大线程数 |
@@ -310,6 +412,38 @@ npm run dev -- --host --port 5173
 - **复制**: 右键角色 → 选择"复制"
 - **删除**: 右键角色 → 选择"删除"（会删除所有消息）
 - **编辑配置**: 右侧"管理"按钮 → 打开角色配置页面
+- **头像管理**: 点击角色头像 → 上传/裁剪/更换头像
+
+### 管理员功能
+
+管理员用户可以访问高级功能：
+
+- **提示词管理**
+  - 查看和编辑所有LLM调用的提示词
+  - 创建新版本并管理历史
+  - 一键激活/回滚任意版本
+  - 实时生效无需重启
+
+- **测试用例管理**
+  - 创建角色和群聊的测试用例
+  - 管理测试数据和预期行为
+  - 标记测试角色（显示⭐标识）
+  - 快速恢复测试环境
+
+- **评估器管理**
+  - 管理15个专用评估器提示词
+  - 针对不同功能模块的专项评估
+  - 评估提示词版本控制
+
+- **测试执行**
+  - 选择提示词版本和评估器版本
+  - 单个/批量/按类别执行测试
+  - 查看结构化评估结果
+  - 对比不同版本效果
+
+- **用户管理**
+  - 查看所有注册用户
+  - 审查用户创建的角色
 
 <div align="center">
 
@@ -338,8 +472,17 @@ FastNPC/
 ├── fastnpc/                    # 后端核心
 │   ├── api/                    # FastAPI路由
 │   │   ├── routes/            # 各功能路由模块
+│   │   │   ├── character_routes.py    # 角色管理
+│   │   │   ├── chat_routes.py         # 单聊对话
+│   │   │   ├── group_routes.py        # 群聊对话
+│   │   │   ├── prompt_routes.py       # 提示词管理
+│   │   │   ├── test_case_routes.py    # 测试用例管理
+│   │   │   └── avatar_routes.py       # 头像上传
+│   │   ├── auth/              # 认证与数据库
+│   │   │   ├── db_init.py     # 数据库初始化
+│   │   │   ├── characters.py  # 角色数据库操作
+│   │   │   └── groups.py      # 群聊数据库操作
 │   │   ├── server.py          # 主服务器入口
-│   │   ├── auth.py            # 认证与数据库
 │   │   ├── state.py           # 任务状态管理
 │   │   └── utils.py           # API工具函数
 │   ├── chat/                   # 对话系统
@@ -357,65 +500,90 @@ FastNPC/
 │   │       ├── core.py        # 主流程
 │   │       ├── prompts.py     # Prompt模板
 │   │       └── processors.py  # 文本处理
+│   ├── scripts/                # 实用脚本
+│   │   ├── init_prompts.py    # 初始化提示词
+│   │   ├── init_evaluation_prompts.py # 初始化评估器
+│   │   └── monitor_pool.py    # 连接池监控
 │   ├── utils/                  # 工具函数
-│   ├── web/                    # 后端模板（可选）
-│   └── config.py               # 配置管理
+│   ├── prompt_manager.py       # 提示词管理器
+│   ├── config.py               # 配置管理
+│   └── cache.py                # Redis缓存
 ├── web/fastnpc-web/            # 前端React应用
 │   ├── src/
+│   │   ├── components/        # React组件
+│   │   │   ├── modals/        # 模态框组件
+│   │   │   │   ├── PromptManagementModal.tsx  # 提示词管理
+│   │   │   │   └── ...
+│   │   │   └── ...
+│   │   ├── contexts/          # React上下文
 │   │   ├── App.tsx            # 主应用组件
 │   │   ├── types.ts           # TypeScript类型定义
 │   │   └── main.tsx           # 入口文件
 │   ├── public/                # 静态资源
 │   └── package.json           # 前端依赖
-├── Characters/                 # 角色数据存储
-├── Test/                       # 测试脚本
-├── logs/                       # 运行日志
-├── fastnpc.db                  # SQLite数据库
+├── docs/                       # 文档
+│   ├── DEPLOYMENT.md          # 部署指南
+│   ├── DATABASE_MANAGEMENT.md # 数据库管理
+│   ├── CONNECTION_POOL_QUICK_FIX.md # 连接池问题修复
+│   └── ...
+├── scripts/                    # 部署脚本
+│   └── start_adminer.sh       # 启动Adminer
+├── Avatars/                    # 用户头像（不提交）
+├── Feedbacks/                  # 用户反馈（不提交）
+├── Characters/                 # 角色数据存储（不提交）
+├── logs/                       # 运行日志（不提交）
+├── fastnpc.db                  # SQLite数据库（不提交）
 ├── requirements.txt            # Python依赖
-├── .env                        # 环境变量（需自己创建）
+├── gunicorn_conf.py            # Gunicorn配置
+├── fastnpc.service             # Systemd服务文件
+├── .env                        # 环境变量（需自己创建，不提交）
+├── DEPLOYMENT.md               # 部署指南
 └── README.md                   # 本文件
 ```
 
 ### 系统架构图
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        用户浏览器                              │
-│                    http://localhost:5173                      │
-└────────────────────────┬────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                        用户浏览器                                 │
+│                    http://localhost:5173                         │
+└────────────────────────┬───────────────────────────────────────┘
                          │ HTTP/WebSocket
                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    前端 (React + Vite)                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │  角色管理    │  │   单聊界面    │  │   群聊界面    │       │
-│  └─────────────┘  └──────────────┘  └──────────────┘       │
-└────────────────────────┬────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                    前端 (React + Vite)                           │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐     │
+│  │角色管理  │ │单聊界面  │ │群聊界面  │ │提示词/测试    │     │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────────┘     │
+└────────────────────────┬───────────────────────────────────────┘
                          │ REST API
                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   后端 (FastAPI)                              │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │              API路由层                                │    │
-│  │  auth / character / chat / group / task ...         │    │
-│  └────────┬──────────────────┬─────────────────────────┘    │
-│           ↓                  ↓                               │
-│  ┌──────────────┐   ┌─────────────────┐                     │
-│  │  数据抓取     │   │   对话系统       │                     │
-│  │ baike/zhwiki │   │ prompt/memory   │                     │
-│  └──────┬───────┘   └────────┬────────┘                     │
-│         ↓                    ↓                               │
-│  ┌──────────────────────────────────┐                       │
-│  │        结构化处理管道              │                       │
-│  │   并发LLM → 8大类 → 简介          │                       │
-│  └──────────────────────────────────┘                       │
-└────────────┬───────────────────┬────────────────────────────┘
-             │                   │
-             ↓                   ↓
-    ┌────────────────┐   ┌──────────────────┐
-    │  SQLite数据库   │   │  OpenRouter API  │
-    │  用户/角色/消息  │   │   (LLM服务)      │
-    └────────────────┘   └──────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                   后端 (FastAPI + Gunicorn)                      │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │              API路由层                                 │      │
+│  │  auth / character / chat / group / prompt / test     │      │
+│  └──┬────────────┬──────────────┬────────────┬──────────┘      │
+│     ↓            ↓              ↓            ↓                  │
+│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌────────────┐          │
+│  │数据抓取 │ │对话系统 │ │提示词管理│ │测试评估    │          │
+│  │baike/   │ │prompt/  │ │PromptMgr │ │TestCase   │          │
+│  │zhwiki   │ │memory   │ └──────────┘ └────────────┘          │
+│  └────┬────┘ └────┬────┘       ↓                               │
+│       ↓           ↓      ┌──────────┐                          │
+│  ┌────────────────────┐  │  Redis   │                          │
+│  │  结构化处理管道     │  │  缓存    │                          │
+│  │ 并发LLM → 9大类    │  └──────────┘                          │
+│  └────────────────────┘                                        │
+└────────┬───────────────────┬────────────────────────────────────┘
+         │                   │
+         ↓                   ↓
+┌──────────────────┐  ┌──────────────────┐
+│  PostgreSQL/     │  │  OpenRouter API  │
+│  SQLite 数据库    │  │   (LLM服务)      │
+│  用户/角色/消息   │  │                  │
+│  提示词/测试用例  │  │                  │
+└──────────────────┘  └──────────────────┘
 ```
 
 ### 核心流程
@@ -586,6 +754,34 @@ python Test/test_chat.py
 - `POST /api/groups/{group_id}/judge-next` - 中控判断下一发言者
 - `POST /api/groups/{group_id}/generate-reply` - 生成角色回复（流式）
 
+#### 提示词管理（管理员）
+
+- `GET /admin/prompts` - 获取提示词列表
+- `POST /admin/prompts` - 创建新提示词
+- `GET /admin/prompts/{id}` - 获取提示词详情
+- `PUT /admin/prompts/{id}` - 更新提示词
+- `DELETE /admin/prompts/{id}` - 删除提示词
+- `POST /admin/prompts/{id}/activate` - 激活指定版本
+- `GET /admin/prompts/{id}/versions` - 获取版本历史
+- `POST /admin/prompts/{id}/duplicate` - 复制提示词
+
+#### 测试用例管理（管理员）
+
+- `GET /admin/test-cases` - 获取测试用例列表
+- `POST /admin/test-cases` - 创建测试用例
+- `GET /admin/test-cases/{id}` - 获取测试用例详情
+- `PUT /admin/test-cases/{id}` - 更新测试用例
+- `DELETE /admin/test-cases/{id}` - 删除测试用例
+- `POST /admin/test-cases/{id}/execute` - 执行单个测试
+- `POST /admin/test-cases/batch-execute` - 批量执行测试
+- `POST /admin/test-cases/reset-character/{id}` - 重置角色状态
+- `POST /admin/test-cases/reset-group/{id}` - 重置群聊状态
+
+#### 头像管理
+
+- `POST /api/avatars/upload` - 上传头像
+- `GET /api/avatars/{filename}` - 获取头像
+
 ---
 
 ## 💡 常见问题
@@ -664,6 +860,51 @@ npm run dev -- --host --port 5173
 - `tencent/hunyuan-a13b-instruct:free`
 
 可在应用设置中选择其他模型。
+
+### Q: 生产环境应该使用PostgreSQL还是SQLite？
+
+**A:** **强烈推荐使用PostgreSQL**：
+- PostgreSQL支持更好的并发和性能
+- 支持连接池优化
+- 更适合多用户生产环境
+- SQLite仅推荐用于开发和测试
+
+### Q: 提示词修改后需要重启服务吗？
+
+**A:** **不需要**！提示词存储在数据库中，修改后实时生效：
+1. 在管理员界面修改提示词
+2. 点击"激活"新版本
+3. 立即生效，无需重启
+4. 可随时回滚到旧版本
+
+### Q: 如何查看数据库内容？
+
+**A:** 使用Adminer数据库管理工具：
+```bash
+./scripts/start_adminer.sh
+# 访问 http://localhost:8080
+```
+详见 `docs/DATABASE_MANAGEMENT.md`
+
+### Q: 遇到"连接池耗尽"错误怎么办？
+
+**A:** 查看 `docs/CONNECTION_POOL_QUICK_FIX.md`，通常通过以下方法解决：
+1. 增加连接池大小（环境变量 `DB_POOL_MAX_CONN`）
+2. 使用连接池监控工具：`python fastnpc/scripts/monitor_pool.py`
+3. 检查是否有连接泄漏
+
+### Q: 如何创建管理员账号？
+
+**A:** 两种方式：
+1. 首个注册的用户自动成为管理员
+2. 在环境变量中设置 `FASTNPC_ADMIN_USER=admin`，然后注册该用户名
+
+### Q: Redis是必需的吗？
+
+**A:** **不是必需的，但强烈推荐**：
+- 不使用Redis：系统仍可正常运行
+- 使用Redis：显著提升性能，特别是角色列表加载和提示词查询
+- 生产环境建议启用Redis
 
 ---
 

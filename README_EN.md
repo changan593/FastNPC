@@ -51,9 +51,10 @@ FastNPC is an innovative AI character automation platform that can automatically
   - Intelligent selection of candidate entries
   
 - **Structured Processing**
-  - 8 character profile categories: Basic Identity, Personality & Behavior, Background Story, Knowledge & Abilities, Dialogue Interaction, Task Functions, Environment & Worldview, System Control
+  - 9 character profile categories: Basic Identity, Personality, Background, Appearance, Behavior, Relationships, Skills, Values, Emotions
   - Concurrent generation optimization (configurable concurrency)
   - Automatic character bio generation
+  - Avatar upload support (crop, compress, format conversion)
 
 ### 💬 Dialogue System
 
@@ -76,17 +77,72 @@ FastNPC is an innovative AI character automation platform that can automatically
 - Admin backend (user management, character review)
 - Personalized configuration (model selection, memory budget, personal bio)
 
+### 🎯 Prompt Version Management
+
+- **Database-Driven Prompt System**
+  - All LLM prompts stored in database
+  - 9 structured generation prompt categories
+  - Single/group chat system prompts
+  - Memory compression and integration prompts
+  
+- **Complete Version Control**
+  - Auto-create new version on each edit
+  - Full version history retention
+  - One-click activate/rollback any version
+  - Version comparison and diff view
+
+### 🧪 Testing & Evaluation System
+
+- **Test Case Management**
+  - Support for character and group test cases
+  - Full CRUD operations
+  - Test case version control
+  - Quick test environment reset
+
+- **Intelligent Evaluators**
+  - 15 specialized evaluators (9 for structured gen + 6 others)
+  - LLM-driven automatic evaluation
+  - Structured scoring (score, strengths, weaknesses, suggestions)
+  - Evaluator prompt version management
+
+- **Test Execution**
+  - Single/batch/category execution
+  - Flexible version selection (prompts + evaluators)
+  - Real-time execution status
+  - Dual view: raw text + structured results
+
+### ⚡ Performance Optimization
+
+- **Database Support**
+  - PostgreSQL (production recommended)
+  - SQLite (development environment)
+  - Optimized connection pooling (10-50 connections)
+  - Automatic connection leak detection
+
+- **Caching System**
+  - Redis for hot data caching
+  - Character list cache
+  - Prompt cache
+  - Auto cache invalidation
+
+- **Monitoring Tools**
+  - Connection pool status monitoring
+  - Stress test scripts
+  - Real-time log tracking
+
 ---
 
 ## 🛠️ Tech Stack
 
 ### Backend
 
-- **Framework**: FastAPI 0.112+
-- **Database**: SQLite3 (extensible to other SQL databases)
+- **Framework**: FastAPI 0.112+ & Gunicorn
+- **Database**: PostgreSQL 13+ / SQLite3
+- **Cache**: Redis 6+
 - **LLM API**: OpenRouter API (compatible with OpenAI SDK)
 - **Web Scraping**: Requests + BeautifulSoup4 + Playwright (optional)
 - **Authentication**: Cookie signing (itsdangerous) + Bcrypt password hashing
+- **Connection Pool**: psycopg2 ThreadedConnectionPool
 
 ### Frontend
 
@@ -94,17 +150,22 @@ FastNPC is an innovative AI character automation platform that can automatically
 - **Build Tool**: Vite 7
 - **HTTP Client**: Axios
 - **Styling**: CSS Modules
+- **Image Processing**: Cropper.js
 
 ### Core Dependencies
 
 ```
 fastapi>=0.112.0          # Web framework
 uvicorn[standard]>=0.30.0 # ASGI server
+gunicorn>=23.0.0          # WSGI server
 openai>=1.40.0            # LLM SDK
+psycopg2-binary>=2.9.0    # PostgreSQL driver
+redis>=5.0.0              # Redis client
 beautifulsoup4>=4.12.3    # HTML parsing
 sqlalchemy>=2.0.32        # ORM
 passlib[bcrypt]>=1.7.4    # Password encryption
 python-dotenv>=1.0.1      # Environment variable management
+pillow>=10.0.0            # Image processing
 ```
 
 ---
@@ -207,6 +268,17 @@ The frontend service will start at `http://localhost:5173`.
 |----------|----------|---------|-------------|
 | `FASTNPC_SECRET` | ✅ | None | Cookie signing key, must set a strong random string |
 | `OPENROUTER_API_KEY` | ✅ | None | OpenRouter API key for LLM calls |
+| `USE_POSTGRESQL` | ❌ | `false` | Use PostgreSQL (`true` recommended for production) |
+| `POSTGRES_HOST` | ❌ | `localhost` | PostgreSQL host address |
+| `POSTGRES_PORT` | ❌ | `5432` | PostgreSQL port |
+| `POSTGRES_DB` | ❌ | `fastnpc` | PostgreSQL database name |
+| `POSTGRES_USER` | ❌ | `fastnpc` | PostgreSQL username |
+| `POSTGRES_PASSWORD` | ❌ | None | PostgreSQL password |
+| `REDIS_HOST` | ❌ | `localhost` | Redis host address (optional) |
+| `REDIS_PORT` | ❌ | `6379` | Redis port |
+| `USE_DB_PROMPTS` | ❌ | `true` | Use database prompt system |
+| `DB_POOL_MIN_CONN` | ❌ | `10` | Database connection pool min size |
+| `DB_POOL_MAX_CONN` | ❌ | `50` | Database connection pool max size |
 | `FASTNPC_ADMIN_USER` | ❌ | None | Admin username, first registered user with this name will get admin privileges |
 | `FASTNPC_FRONTEND_ORIGIN` | ❌ | `http://localhost:5173` | Frontend URL for CORS, supports comma-separated multiple URLs |
 | `FASTNPC_MAX_CONCURRENCY` | ❌ | `4` | Structuring concurrency, controls max concurrent LLM calls |
@@ -587,6 +659,34 @@ After starting the backend service, visit the following addresses to view comple
 - `POST /api/groups/{group_id}/judge-next` - Moderator judges next speaker
 - `POST /api/groups/{group_id}/generate-reply` - Generate character reply (streaming)
 
+#### Prompt Management (Admin)
+
+- `GET /admin/prompts` - Get prompt list
+- `POST /admin/prompts` - Create new prompt
+- `GET /admin/prompts/{id}` - Get prompt details
+- `PUT /admin/prompts/{id}` - Update prompt
+- `DELETE /admin/prompts/{id}` - Delete prompt
+- `POST /admin/prompts/{id}/activate` - Activate specific version
+- `GET /admin/prompts/{id}/versions` - Get version history
+- `POST /admin/prompts/{id}/duplicate` - Duplicate prompt
+
+#### Test Case Management (Admin)
+
+- `GET /admin/test-cases` - Get test case list
+- `POST /admin/test-cases` - Create test case
+- `GET /admin/test-cases/{id}` - Get test case details
+- `PUT /admin/test-cases/{id}` - Update test case
+- `DELETE /admin/test-cases/{id}` - Delete test case
+- `POST /admin/test-cases/{id}/execute` - Execute single test
+- `POST /admin/test-cases/batch-execute` - Batch execute tests
+- `POST /admin/test-cases/reset-character/{id}` - Reset character state
+- `POST /admin/test-cases/reset-group/{id}` - Reset group state
+
+#### Avatar Management
+
+- `POST /api/avatars/upload` - Upload avatar
+- `GET /api/avatars/{filename}` - Get avatar
+
 ---
 
 ## 💡 FAQ
@@ -665,6 +765,51 @@ npm run dev -- --host --port 5173
 - `tencent/hunyuan-a13b-instruct:free`
 
 You can select other models in the app settings.
+
+### Q: Should I use PostgreSQL or SQLite for production?
+
+**A:** **PostgreSQL is strongly recommended**:
+- PostgreSQL supports better concurrency and performance
+- Supports connection pool optimization
+- More suitable for multi-user production environment
+- SQLite is only recommended for development and testing
+
+### Q: Do I need to restart the service after modifying prompts?
+
+**A:** **No!** Prompts are stored in the database and take effect immediately:
+1. Modify prompts in admin interface
+2. Click "Activate" for the new version
+3. Takes effect immediately, no restart needed
+4. Can roll back to old versions anytime
+
+### Q: How to view database contents?
+
+**A:** Use Adminer database management tool:
+```bash
+./scripts/start_adminer.sh
+# Visit http://localhost:8080
+```
+See `docs/DATABASE_MANAGEMENT.md` for details
+
+### Q: What to do about "connection pool exhausted" error?
+
+**A:** See `docs/CONNECTION_POOL_QUICK_FIX.md`, usually solved by:
+1. Increase pool size (environment variable `DB_POOL_MAX_CONN`)
+2. Use pool monitoring tool: `python fastnpc/scripts/monitor_pool.py`
+3. Check for connection leaks
+
+### Q: How to create an admin account?
+
+**A:** Two ways:
+1. First registered user automatically becomes admin
+2. Set `FASTNPC_ADMIN_USER=admin` in environment variables, then register that username
+
+### Q: Is Redis required?
+
+**A:** **Not required, but strongly recommended**:
+- Without Redis: System still works normally
+- With Redis: Significantly improves performance, especially for character list loading and prompt queries
+- Recommended for production environments
 
 ---
 
