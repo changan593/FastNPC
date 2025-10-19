@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -16,6 +17,7 @@ from fastnpc.config import USE_POSTGRESQL, BASE_DIR
 from fastnpc.api.auth.db_utils import _get_conn, _return_conn, _row_to_dict
 from fastnpc.api.utils import _require_admin
 from fastnpc.api.cache import get_redis_cache
+from fastnpc.prompt_manager import PromptManager
 
 
 router = APIRouter()
@@ -632,11 +634,80 @@ async def batch_execute_tests(request: Request):
     except:
         return JSONResponse({"error": "Invalid JSON"}, status_code=400)
     
-    # 暂时返回占位响应，实际执行逻辑将在阶段五实现
+    executions = data.get('executions', [])
+    if not executions:
+        return JSONResponse({"error": "No executions provided"}, status_code=400)
+    
+    results = []
+    
+    for exec_config in executions:
+        test_case_id = exec_config.get('test_case_id')
+        prompt_template_id = exec_config.get('prompt_template_id')
+        evaluator_prompt_id = exec_config.get('evaluator_prompt_id')
+        
+        try:
+            # 获取测试用例
+            test_case = _get_test_case(test_case_id)
+            if not test_case:
+                results.append({
+                    "test_case_id": test_case_id,
+                    "success": False,
+                    "error": "Test case not found"
+                })
+                continue
+            
+            # 执行测试
+            start_time = time.time()
+            llm_response = await _execute_test_logic_mock(test_case, prompt_template_id)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # 评估结果
+            evaluation_result, evaluation_feedback = await _evaluate_result_mock(
+                test_case, llm_response, evaluator_prompt_id
+            )
+            
+            # 保存执行记录
+            execution_id = _save_execution_record(
+                test_case_id=test_case_id,
+                prompt_template_id=prompt_template_id,
+                evaluator_prompt_id=evaluator_prompt_id,
+                duration_ms=duration_ms,
+                llm_response=llm_response,
+                evaluation_result=evaluation_result,
+                evaluation_feedback=evaluation_feedback,
+                executed_by=user['uid']
+            )
+            
+            # 计算分数
+            score = evaluation_result.get('score') or evaluation_result.get('总分') if evaluation_result else None
+            
+            results.append({
+                "test_case_id": test_case_id,
+                "success": True,
+                "execution_id": execution_id,
+                "duration_ms": duration_ms,
+                "evaluation_result": evaluation_result,
+                "evaluation_feedback": evaluation_feedback,
+                "score": score,
+                "execution_time": int(time.time())
+            })
+            
+        except Exception as e:
+            print(f"[ERROR] 执行测试用例 {test_case_id} 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            results.append({
+                "test_case_id": test_case_id,
+                "success": False,
+                "error": str(e)
+            })
+    
     return {
         "ok": True,
-        "message": "批量测试执行功能将在阶段五实现",
-        "test_case_ids": data.get('test_case_ids', [])
+        "results": results,
+        "total": len(executions),
+        "succeeded": sum(1 for r in results if r.get('success')),
+        "failed": sum(1 for r in results if not r.get('success'))
     }
 
 
@@ -767,4 +838,194 @@ async def mark_group_test_case(group_id: int, request: Request, is_test_case: bo
         return {"ok": True, "message": message}
     else:
         return JSONResponse({"error": message}, status_code=400)
+
+
+# ========== 测试执行辅助函数 ==========
+
+def _get_test_case(test_case_id: int):
+    """获取测试用例详情"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        placeholder = "%s" if USE_POSTGRESQL else "?"
+        
+        query = f"SELECT * FROM test_cases WHERE id = {placeholder}"
+        cur.execute(query, (test_case_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            return None
+        
+        if USE_POSTGRESQL:
+            return _row_to_dict(row, cur)
+        else:
+            return dict(row)
+    finally:
+        _return_conn(conn)
+
+
+def _get_prompt_by_id(prompt_id: int):
+    """获取提示词详情"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        placeholder = "%s" if USE_POSTGRESQL else "?"
+        
+        query = f"SELECT * FROM prompt_templates WHERE id = {placeholder}"
+        cur.execute(query, (prompt_id,))
+        row = cur.fetchone()
+        
+        if not row:
+            return None
+        
+        if USE_POSTGRESQL:
+            return _row_to_dict(row, cur)
+        else:
+            return dict(row)
+    finally:
+        _return_conn(conn)
+
+
+async def _execute_test_logic_mock(test_case, prompt_template_id):
+    """模拟执行测试逻辑（基础版本）
+    
+    TODO: 实际实现需要根据test_case的target_type和category调用相应的功能
+    - character + SINGLE_CHAT: 调用单聊API
+    - group + GROUP_CHAT: 调用群聊API
+    - STRUCTURED_GEN: 调用结构化生成
+    - BRIEF_GEN: 调用简介生成
+    等等
+    """
+    # 模拟LLM响应
+    test_content = test_case.get('test_content', {})
+    category = test_case.get('category', '')
+    
+    mock_response = f"[模拟响应] 测试类别: {category}\n"
+    mock_response += f"测试内容: {json.dumps(test_content, ensure_ascii=False)}\n"
+    mock_response += "此为测试执行的模拟响应。完整实现将调用实际的角色对话、结构化生成等功能。"
+    
+    return mock_response
+
+
+async def _evaluate_result_mock(test_case, llm_response, evaluator_prompt_id):
+    """模拟评估结果（基础版本）
+    
+    TODO: 实际实现需要调用LLM API使用评估器提示词进行评估
+    """
+    # 获取评估器提示词
+    evaluator = _get_prompt_by_id(evaluator_prompt_id) if evaluator_prompt_id else None
+    
+    if not evaluator:
+        evaluator_name = "默认评估器"
+    else:
+        evaluator_name = evaluator.get('name', '评估器')
+    
+    # 模拟评估结果
+    evaluation_result = {
+        "score": 85,
+        "总分": 85,
+        "优点": [
+            "响应内容与测试预期基本一致",
+            "格式规范，表达清晰"
+        ],
+        "缺点": [
+            "部分细节可以更完善"
+        ],
+        "建议": [
+            "可以增加更多上下文信息",
+            "建议优化回复的连贯性"
+        ],
+        "详细评分": {
+            "准确性": 90,
+            "完整性": 85,
+            "流畅性": 80
+        }
+    }
+    
+    evaluation_feedback = f"""【评估报告】
+
+使用评估器: {evaluator_name}
+
+总分: 85/100
+
+✅ 优点:
+• 响应内容与测试预期基本一致
+• 格式规范，表达清晰
+
+⚠️ 缺点:
+• 部分细节可以更完善
+
+💡 改进建议:
+• 可以增加更多上下文信息
+• 建议优化回复的连贯性
+
+详细评分:
+• 准确性: 90/100
+• 完整性: 85/100
+• 流畅性: 80/100
+
+[注意: 此为模拟评估结果。完整实现将调用LLM进行实际评估]
+"""
+    
+    return evaluation_result, evaluation_feedback
+
+
+def _save_execution_record(test_case_id, prompt_template_id, evaluator_prompt_id,
+                           duration_ms, llm_response, evaluation_result, evaluation_feedback,
+                           executed_by):
+    """保存测试执行记录"""
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        now = int(time.time())
+        
+        # 解析评分
+        score = None
+        passed = None
+        if evaluation_result:
+            score = evaluation_result.get('score') or evaluation_result.get('总分')
+            if score is not None:
+                passed = score >= 60  # 60分以上算通过
+        
+        # 序列化evaluation_result
+        eval_result_json = json.dumps(evaluation_result, ensure_ascii=False) if evaluation_result else None
+        
+        if USE_POSTGRESQL:
+            query = """
+                INSERT INTO test_executions 
+                (test_case_id, prompt_template_id, evaluator_prompt_id, 
+                 execution_time, duration_ms, llm_response, evaluation_result, 
+                 evaluation_feedback, passed, score, executed_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
+                RETURNING id
+            """
+            cur.execute(query, (
+                test_case_id, prompt_template_id, evaluator_prompt_id,
+                now, duration_ms, llm_response, eval_result_json,
+                evaluation_feedback, passed, score, executed_by
+            ))
+            execution_id = cur.fetchone()[0]
+        else:
+            query = """
+                INSERT INTO test_executions 
+                (test_case_id, prompt_template_id, evaluator_prompt_id,
+                 execution_time, duration_ms, llm_response, evaluation_result,
+                 evaluation_feedback, passed, score, executed_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            cur.execute(query, (
+                test_case_id, prompt_template_id, evaluator_prompt_id,
+                now, duration_ms, llm_response, eval_result_json,
+                evaluation_feedback, passed, score, executed_by
+            ))
+            execution_id = cur.lastrowid
+        
+        conn.commit()
+        return execution_id
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] 保存执行记录失败: {e}")
+        raise
+    finally:
+        _return_conn(conn)
 

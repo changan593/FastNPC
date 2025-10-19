@@ -193,3 +193,4 @@ docker exec -it fastnpc-postgres psql -U fastnpc_user -d fastnpc -c "SELECT COUN
 tail -f /home/changan/MyProject/FastNPC/backend.log
 ```
 
+

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { PromptVersionSwitcher } from '../PromptVersionSwitcher'
-import type { TestCase, TestExecution } from '../../types'
+import type { TestCase, TestConfig, TestExecutionResult, ParsedEvaluationResult } from '../../types'
 import './PromptManagementModal.css'
 
 interface Prompt {
@@ -48,15 +48,52 @@ const PROMPT_CATEGORIES = {
   'STRUCTURED_SYSTEM_MESSAGE': { name: '结构化系统消息', subCategories: [] }
 }
 
-// 评估提示词分类定义
-const EVALUATION_CATEGORIES = {
-  'EVALUATOR_STRUCTURED_GEN': { name: '结构化生成评估器', icon: '📋' },
-  'EVALUATOR_BRIEF_GEN': { name: '简介生成评估器', icon: '📝' },
-  'EVALUATOR_SINGLE_CHAT': { name: '单聊对话评估器', icon: '💬' },
-  'EVALUATOR_GROUP_CHAT': { name: '群聊对话评估器', icon: '👥' },
-  'EVALUATOR_STM_COMPRESSION': { name: '短期记忆凝练评估器', icon: '🧠' },
-  'EVALUATOR_LTM_INTEGRATION': { name: '长期记忆整合评估器', icon: '💾' },
-  'EVALUATOR_GROUP_MODERATOR': { name: '群聊中控评估器', icon: '🎯' }
+// 评估提示词分类定义（分级结构）
+const EVALUATION_CATEGORIES: Record<string, { name: string; subCategories: string[] }> = {
+  'STRUCTURED_GEN_EVALUATORS': { 
+    name: '结构化生成评估器', 
+    subCategories: [
+      'EVALUATOR_BASIC_INFO',
+      'EVALUATOR_PERSONALITY', 
+      'EVALUATOR_BACKGROUND',
+      'EVALUATOR_APPEARANCE',
+      'EVALUATOR_BEHAVIOR',
+      'EVALUATOR_RELATIONSHIPS',
+      'EVALUATOR_SKILLS',
+      'EVALUATOR_VALUES',
+      'EVALUATOR_EMOTIONS'
+    ] 
+  },
+  'OTHER_EVALUATORS': { 
+    name: '其他评估器', 
+    subCategories: [
+      'EVALUATOR_BRIEF_GEN',
+      'EVALUATOR_SINGLE_CHAT',
+      'EVALUATOR_GROUP_CHAT',
+      'EVALUATOR_STM_COMPRESSION',
+      'EVALUATOR_LTM_INTEGRATION',
+      'EVALUATOR_GROUP_MODERATOR'
+    ] 
+  }
+}
+
+// 评估器子类别名称映射
+const EVALUATOR_SUBCATEGORY_NAMES: Record<string, string> = {
+  'EVALUATOR_BASIC_INFO': '基础身份信息评估器',
+  'EVALUATOR_PERSONALITY': '性格特征评估器',
+  'EVALUATOR_BACKGROUND': '背景经历评估器',
+  'EVALUATOR_APPEARANCE': '外貌特征评估器',
+  'EVALUATOR_BEHAVIOR': '行为习惯评估器',
+  'EVALUATOR_RELATIONSHIPS': '人际关系评估器',
+  'EVALUATOR_SKILLS': '技能特长评估器',
+  'EVALUATOR_VALUES': '价值观信念评估器',
+  'EVALUATOR_EMOTIONS': '情感倾向评估器',
+  'EVALUATOR_BRIEF_GEN': '简介生成评估器',
+  'EVALUATOR_SINGLE_CHAT': '单聊对话评估器',
+  'EVALUATOR_GROUP_CHAT': '群聊对话评估器',
+  'EVALUATOR_STM_COMPRESSION': '短期记忆凝练评估器',
+  'EVALUATOR_LTM_INTEGRATION': '长期记忆整合评估器',
+  'EVALUATOR_GROUP_MODERATOR': '群聊中控评估器'
 }
 
 // 测试分类定义
@@ -74,7 +111,7 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
   const { api } = useAuth()
   
   // 标签页状态
-  const [activeTab, setActiveTab] = useState<'prompts' | 'tests' | 'evaluation'>('prompts')
+  const [activeTab, setActiveTab] = useState<'prompts' | 'testcases' | 'evaluation' | 'execution'>('prompts')
   
   // 提示词相关状态
   const [prompts, setPrompts] = useState<Prompt[]>([])
@@ -90,10 +127,6 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
   const [editedContent, setEditedContent] = useState('')
   const [editedDescription, setEditedDescription] = useState('')
   
-  // 测试状态
-  const [testResults, setTestResults] = useState<any>(null)
-  const [testingPromptId, setTestingPromptId] = useState<number | null>(null)
-  
   // 版本切换状态
   const [showVersionSwitcher, setShowVersionSwitcher] = useState(false)
   
@@ -101,7 +134,7 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
   const [testCategory, setTestCategory] = useState<string>('SINGLE_CHAT')
   const [testCases, setTestCases] = useState<TestCase[]>([])
   const [selectedTestCase, setSelectedTestCase] = useState<TestCase | null>(null)
-  const [executions, setExecutions] = useState<TestExecution[]>([])
+  const [selectedTarget, setSelectedTarget] = useState<{type: string, id: string, name: string} | null>(null)
   const [testLoading, setTestLoading] = useState(false)
   const [executing, setExecuting] = useState(false)
   
@@ -115,22 +148,37 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
   const [configMaxTokens, setConfigMaxTokens] = useState('')
   const [configModel, setConfigModel] = useState('')
 
+  // 测试执行标签页状态
+  const [executionMode, setExecutionMode] = useState<'single' | 'batch' | 'category'>('single')
+  const [testConfigs, setTestConfigs] = useState<TestConfig[]>([])
+  const [selectedTestCases, setSelectedTestCases] = useState<number[]>([])
+  const [availableTestCases, setAvailableTestCases] = useState<TestCase[]>([])
+  const [selectedCategoryForExecution, setSelectedCategoryForExecution] = useState<string>('SINGLE_CHAT')
+  const [executionResults, setExecutionResults] = useState<TestExecutionResult[]>([])
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [resultDisplayModes, setResultDisplayModes] = useState<Record<number, 'raw' | 'structured'>>({}) // 存储每个结果的显示模式
+
   useEffect(() => {
     if (show) {
       loadPrompts()
       loadPromptTestCases()
       
-      // 如果是测试标签页，加载测试用例
-      if (activeTab === 'tests') {
+      // 如果是测试用例标签页，加载测试用例
+      if (activeTab === 'testcases') {
         loadTestCases(testCategory)
       }
+      
+      // 如果是执行标签页，加载可用的测试用例
+      if (activeTab === 'execution') {
+        loadAvailableTestCases()
+      }
     }
-  }, [show, activeTab, testCategory])
+  }, [show, activeTab, testCategory, selectedCategoryForExecution])
   
-  // 加载测试执行历史和配置
+  // 加载测试配置
   useEffect(() => {
     if (selectedTestCase) {
-      loadExecutions(selectedTestCase.id)
       loadTestConfig(selectedTestCase)
     }
   }, [selectedTestCase])
@@ -206,24 +254,6 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
     }
   }
   
-  // 加载测试执行历史
-  async function loadExecutions(testCaseId: number) {
-    try {
-      const response = await fetch(`/admin/test-reports?test_case_id=${testCaseId}`, {
-        credentials: 'include'
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setExecutions(data.executions || [])
-      } else {
-        console.error('加载执行历史失败:', await response.text())
-        setExecutions([])
-      }
-    } catch (error) {
-      console.error('加载执行历史失败:', error)
-      setExecutions([])
-    }
-  }
 
   function selectPrompt(category: string, subCategory?: string) {
     setSelectedCategory(category)
@@ -237,7 +267,6 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
     )
     
     setSelectedPrompt(prompt || null)
-    setTestResults(null)
   }
 
   async function handleSave() {
@@ -292,22 +321,6 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
     }
   }
 
-  async function handleRunTest() {
-    if (!selectedPrompt) return
-    
-    setTestingPromptId(selectedPrompt.id)
-    setTestResults(null)
-    
-    try {
-      const { data } = await api.post(`/admin/prompts/${selectedPrompt.id}/test`)
-      setTestResults(data.results || [])
-    } catch (e: any) {
-      alert(e?.response?.data?.error || '测试失败')
-    } finally {
-      setTestingPromptId(null)
-    }
-  }
-
   async function loadPromptVersion(versionId: number) {
     try {
       const { data } = await api.get(`/admin/prompts/${versionId}`)
@@ -333,8 +346,6 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
       if (response.ok) {
         const result = await response.json()
         alert(`测试执行完成！\n通过: ${result.passed ? '是' : '否'}\n评分: ${result.score || 'N/A'}`)
-        // 重新加载执行历史
-        await loadExecutions(selectedTestCase.id)
       } else {
         const error = await response.text()
         alert(`测试执行失败: ${error}`)
@@ -444,6 +455,313 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
     if (ms < 1000) return `${ms}ms`
     return `${(ms / 1000).toFixed(2)}s`
   }
+  
+  // 获取去重的target列表
+  const getUniqueTargets = () => {
+    const targetMap = new Map<string, {type: string, id: string, name: string}>()
+    
+    testCases.forEach(tc => {
+      const key = `${tc.target_type}-${tc.target_id}`
+      if (!targetMap.has(key)) {
+        // 从测试用例名称中提取角色/群聊名称
+        const name = tc.name.split('-')[0] || tc.name
+        targetMap.set(key, {
+          type: tc.target_type,
+          id: tc.target_id,
+          name: name
+        })
+      }
+    })
+    
+    return Array.from(targetMap.values())
+  }
+  
+  // 选择target
+  const selectTarget = (target: {type: string, id: string, name: string}) => {
+    setSelectedTarget(target)
+    
+    // 自动选中该target的第一个测试用例
+    const firstTestCase = testCases.find(
+      tc => tc.target_type === target.type && tc.target_id === target.id
+    )
+    if (firstTestCase) {
+      setSelectedTestCase(firstTestCase)
+    }
+  }
+
+  // ========== 测试执行标签页相关函数 ==========
+  
+  // 加载可用的测试用例
+  async function loadAvailableTestCases() {
+    try {
+      let url = '/admin/test-cases?include_inactive=false'
+      if (executionMode === 'category') {
+        url += `&category=${selectedCategoryForExecution}`
+      }
+      
+      const response = await fetch(url, { credentials: 'include' })
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableTestCases(data.items || [])
+      }
+    } catch (error) {
+      console.error('加载测试用例失败:', error)
+    }
+  }
+  
+  // 添加测试用例到配置表格
+  function addTestCaseToConfig(testCase: TestCase) {
+    // 检查是否已存在
+    if (testConfigs.some(c => c.testCaseId === testCase.id)) {
+      alert('该测试用例已添加')
+      return
+    }
+    
+    const newConfig: TestConfig = {
+      id: `config-${Date.now()}-${Math.random()}`,
+      testCaseId: testCase.id,
+      testCaseName: testCase.name,
+      testCaseCategory: testCase.category,
+      promptCategory: testCase.prompt_category || '',
+      promptSubCategory: testCase.prompt_sub_category,
+      selectedPromptVersion: undefined,
+      selectedEvaluatorVersion: undefined,
+      status: 'pending'
+    }
+    
+    setTestConfigs([...testConfigs, newConfig])
+  }
+  
+  // 移除测试配置
+  function removeTestConfig(configId: string) {
+    setTestConfigs(testConfigs.filter(c => c.id !== configId))
+  }
+  
+  // 更新测试配置的提示词版本
+  function updateConfigPromptVersion(configId: string, promptId: number) {
+    setTestConfigs(testConfigs.map(c => 
+      c.id === configId ? { ...c, selectedPromptVersion: promptId } : c
+    ))
+  }
+  
+  // 更新测试配置的评估器版本
+  function updateConfigEvaluatorVersion(configId: string, evaluatorId: number) {
+    setTestConfigs(testConfigs.map(c => 
+      c.id === configId ? { ...c, selectedEvaluatorVersion: evaluatorId } : c
+    ))
+  }
+  
+  // 获取某个配置可选的提示词版本
+  function getAvailablePromptVersions(config: TestConfig) {
+    return prompts.filter(p => 
+      p.category === config.promptCategory && 
+      (!config.promptSubCategory || p.sub_category === config.promptSubCategory)
+    )
+  }
+  
+  // 获取某个配置可选的评估器版本
+  function getAvailableEvaluatorVersions(config: TestConfig) {
+    // 根据提示词类别映射到评估器类别
+    let evaluatorCategory = ''
+    
+    // 结构化生成需要根据子类别细化
+    if (config.promptCategory === 'STRUCTURED_GEN' && config.promptSubCategory) {
+      const structuredEvaluatorMap: Record<string, string> = {
+        '基础身份信息': 'EVALUATOR_BASIC_INFO',
+        '性格特征': 'EVALUATOR_PERSONALITY',
+        '背景经历': 'EVALUATOR_BACKGROUND',
+        '外貌特征': 'EVALUATOR_APPEARANCE',
+        '行为习惯': 'EVALUATOR_BEHAVIOR',
+        '人际关系': 'EVALUATOR_RELATIONSHIPS',
+        '技能特长': 'EVALUATOR_SKILLS',
+        '价值观信念': 'EVALUATOR_VALUES',
+        '情感倾向': 'EVALUATOR_EMOTIONS'
+      }
+      evaluatorCategory = structuredEvaluatorMap[config.promptSubCategory] || ''
+    } else {
+      // 其他类别的映射
+      const evaluatorCategoryMap: Record<string, string> = {
+        'SINGLE_CHAT_SYSTEM': 'EVALUATOR_SINGLE_CHAT',
+        'GROUP_CHAT_CHARACTER': 'EVALUATOR_GROUP_CHAT',
+        'BRIEF_GEN': 'EVALUATOR_BRIEF_GEN',
+        'SINGLE_CHAT_STM_COMPRESSION': 'EVALUATOR_STM_COMPRESSION',
+        'GROUP_CHAT_STM_COMPRESSION': 'EVALUATOR_STM_COMPRESSION',
+        'LTM_INTEGRATION': 'EVALUATOR_LTM_INTEGRATION',
+        'GROUP_MODERATOR': 'EVALUATOR_GROUP_MODERATOR'
+      }
+      evaluatorCategory = evaluatorCategoryMap[config.promptCategory] || ''
+    }
+    
+    if (!evaluatorCategory) return []
+    
+    return prompts.filter(p => p.category === evaluatorCategory)
+  }
+  
+  // 运行测试
+  async function handleRunTests() {
+    // 验证所有配置都已选择版本
+    for (const config of testConfigs) {
+      if (!config.selectedPromptVersion) {
+        alert(`请为测试用例"${config.testCaseName}"选择提示词版本`)
+        return
+      }
+      if (!config.selectedEvaluatorVersion) {
+        alert(`请为测试用例"${config.testCaseName}"选择评估器版本`)
+        return
+      }
+    }
+    
+    if (testConfigs.length === 0) {
+      alert('请先添加测试用例')
+      return
+    }
+    
+    setIsExecuting(true)
+    setExecutionResults([])
+    
+    // 更新所有配置状态为running
+    setTestConfigs(testConfigs.map(c => ({ ...c, status: 'running' })))
+    
+    try {
+      // 构建批量执行请求
+      const executions = testConfigs.map(config => ({
+        test_case_id: config.testCaseId,
+        prompt_template_id: config.selectedPromptVersion!,
+        evaluator_prompt_id: config.selectedEvaluatorVersion!
+      }))
+      
+      const response = await fetch('/admin/test-cases/batch-execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ executions })
+      })
+      
+      if (!response.ok) {
+        throw new Error('执行失败')
+      }
+      
+      const data = await response.json()
+      
+      // 处理结果
+      const results: TestExecutionResult[] = data.results.map((r: any) => ({
+        ...r,
+        testCaseName: testConfigs.find(c => c.testCaseId === r.test_case_id)?.testCaseName
+      }))
+      
+      setExecutionResults(results)
+      
+      // 更新配置状态
+      setTestConfigs(testConfigs.map(config => {
+        const result = results.find(r => r.test_case_id === config.testCaseId)
+        return {
+          ...config,
+          status: result?.success ? 'completed' : 'error'
+        }
+      }))
+      
+    } catch (error) {
+      console.error('执行测试失败:', error)
+      alert('执行测试失败: ' + (error instanceof Error ? error.message : String(error)))
+      setTestConfigs(testConfigs.map(c => ({ ...c, status: 'error' })))
+    } finally {
+      setIsExecuting(false)
+    }
+  }
+  
+  // 恢复测试环境
+  async function handleRestoreTestEnvironment() {
+    if (testConfigs.length === 0) {
+      alert('没有需要恢复的测试环境')
+      return
+    }
+    
+    if (!confirm('确定要清除所有相关角色和群聊的记忆和消息吗？此操作不可恢复。')) {
+      return
+    }
+    
+    setIsRestoring(true)
+    
+    try {
+      // 收集所有需要恢复的target
+      const targets = new Map<string, Set<number>>()
+      
+      for (const config of testConfigs) {
+        const response = await fetch(`/admin/test-cases/${config.testCaseId}`, {
+          credentials: 'include'
+        })
+        if (response.ok) {
+          const testCase = await response.json()
+          const targetType = testCase.target_type
+          const targetId = parseInt(testCase.target_id)
+          
+          if (!targets.has(targetType)) {
+            targets.set(targetType, new Set())
+          }
+          targets.get(targetType)!.add(targetId)
+        }
+      }
+      
+      // 批量恢复
+      let successCount = 0
+      let failCount = 0
+      
+      for (const [type, ids] of targets) {
+        for (const id of ids) {
+          try {
+            let url = ''
+            if (type === 'character') {
+              url = `/admin/test-cases/reset-character/${id}`
+            } else if (type === 'group') {
+              url = `/admin/test-cases/reset-group/${id}`
+            } else {
+              continue
+            }
+            
+            const response = await fetch(url, {
+              method: 'POST',
+              credentials: 'include'
+            })
+            
+            if (response.ok) {
+              successCount++
+            } else {
+              failCount++
+            }
+          } catch (error) {
+            failCount++
+          }
+        }
+      }
+      
+      alert(`恢复完成！成功: ${successCount}, 失败: ${failCount}`)
+      
+    } catch (error) {
+      console.error('恢复测试环境失败:', error)
+      alert('恢复测试环境失败: ' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setIsRestoring(false)
+    }
+  }
+  
+  // 解析评估结果
+  function parseEvaluationResult(result: any): ParsedEvaluationResult {
+    if (!result) return { raw: '无评估结果' }
+    
+    try {
+      // 尝试提取常见字段（支持中英文）
+      return {
+        score: result.score || result.总分 || result.评分 || undefined,
+        strengths: result.strengths || result.优点 || result.亮点 || [],
+        weaknesses: result.weaknesses || result.缺点 || result.不足 || [],
+        suggestions: result.suggestions || result.建议 || result.改进建议 || [],
+        details: result.details || result.详细评分 || result.详情 || {},
+        raw: JSON.stringify(result, null, 2)
+      }
+    } catch (error) {
+      return { raw: String(result) }
+    }
+  }
 
   if (!show) return null
 
@@ -458,19 +776,25 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                 className={`tab-btn ${activeTab === 'prompts' ? 'active' : ''}`}
                 onClick={() => setActiveTab('prompts')}
               >
-                🎯 提示词
+                🎯 功能提示词
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'testcases' ? 'active' : ''}`}
+                onClick={() => setActiveTab('testcases')}
+              >
+                🧪 测试用例
               </button>
               <button 
                 className={`tab-btn ${activeTab === 'evaluation' ? 'active' : ''}`}
                 onClick={() => setActiveTab('evaluation')}
               >
-                ⭐ 评估
+                ⭐ 评估提示词
               </button>
               <button 
-                className={`tab-btn ${activeTab === 'tests' ? 'active' : ''}`}
-                onClick={() => setActiveTab('tests')}
+                className={`tab-btn ${activeTab === 'execution' ? 'active' : ''}`}
+                onClick={() => setActiveTab('execution')}
               >
-                🧪 测试用例
+                ▶️ 测试执行
               </button>
             </div>
           </div>
@@ -589,104 +913,91 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
             )}
           </div>
 
-          {/* 右侧：测试面板 */}
+          {/* 右侧：提示词信息 */}
           <div className="test-panel">
-            <h3>测试与评估</h3>
+            <h3>提示词信息</h3>
             
             {selectedPrompt ? (
               <>
-                <div className="test-controls">
-                  <button
-                    onClick={handleRunTest}
-                    disabled={testingPromptId !== null}
-                    className="btn-primary"
-                    style={{ width: '100%' }}
-                  >
-                    {testingPromptId ? '⏳ 测试中...' : '▶️ 运行测试'}
-                  </button>
+                <div className="prompt-info">
+                  <div className="info-section">
+                    <h4>📋 基本信息</h4>
+                    <div className="info-item">
+                      <strong>类别：</strong>
+                      <span>{selectedPrompt.category}</span>
+                    </div>
+                    {selectedPrompt.sub_category && (
+                      <div className="info-item">
+                        <strong>子类别：</strong>
+                        <span>{selectedPrompt.sub_category}</span>
+                      </div>
+                    )}
+                    <div className="info-item">
+                      <strong>版本：</strong>
+                      <span>v{selectedPrompt.version}</span>
+                    </div>
+                    <div className="info-item">
+                      <strong>状态：</strong>
+                      <span className={selectedPrompt.is_active === 1 ? 'status-active' : 'status-inactive'}>
+                        {selectedPrompt.is_active === 1 ? '✓ 已激活' : '○ 未激活'}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <strong>创建时间：</strong>
+                      <span>{new Date(selectedPrompt.created_at * 1000).toLocaleString('zh-CN')}</span>
+                    </div>
                 </div>
 
-                {testResults && (
-                  <div className="test-results">
-                    <h4>测试结果</h4>
-                    {testResults.map((result: any, idx: number) => {
-                      if (result.error) {
-                        return (
-                          <div key={idx} className="test-result error">
-                            <strong>❌ 错误</strong>
-                            <p>{result.error}</p>
-                          </div>
-                        )
+                  <div className="info-section">
+                    <h4>🔧 使用说明</h4>
+                    <p style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280' }}>
+                      {selectedPrompt.is_active === 1 
+                        ? '此版本当前处于激活状态，系统将使用此提示词。' 
+                        : '此版本未激活，可以点击"激活此版本"按钮来启用。'
                       }
-                      
-                      if (result.info) {
-                        return (
-                          <div key={idx} className="test-result info">
-                            <p>{result.info}</p>
+                    </p>
+                    <p style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280' }}>
+                      • 点击"保存"创建新版本<br/>
+                      • 点击"复制为新版本"创建副本<br/>
+                      • 点击"切换版本"查看历史版本
+                    </p>
                           </div>
-                        )
-                      }
 
-                      const passed = result.passed || false
-                      const metrics = result.auto_metrics || {}
-                      
-                      return (
-                        <div key={idx} className={`test-result ${passed ? 'passed' : 'failed'}`}>
-                          <div className="test-result-header">
-                            <strong>{passed ? '✅' : '❌'} {result.test_case_name}</strong>
-                            <span className="pass-rate">
-                              {(metrics.pass_rate * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                          
-                          {metrics.passed_checks && metrics.passed_checks.length > 0 && (
-                            <div className="checks passed-checks">
-                              {metrics.passed_checks.map((check: string, i: number) => (
-                                <div key={i}>✓ {check}</div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {metrics.failed_checks && metrics.failed_checks.length > 0 && (
-                            <div className="checks failed-checks">
-                              {metrics.failed_checks.map((check: string, i: number) => (
-                                <div key={i}>✗ {check}</div>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {result.output_content && (
-                            <details>
-                              <summary>查看输出</summary>
-                              <pre>{result.output_content.substring(0, 500)}...</pre>
-                            </details>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* 相关测试用例 */}
-                <div className="related-test-cases">
-                  <h4>相关测试用例</h4>
-                  {promptTestCases
-                    .filter(tc => 
+                  {/* 相关测试用例 */}
+                  <div className="info-section">
+                    <h4>🧪 相关测试用例</h4>
+                    {promptTestCases.filter(tc => 
                       tc.prompt_category === selectedPrompt.category &&
                       (!tc.prompt_sub_category || tc.prompt_sub_category === selectedPrompt.sub_category)
-                    )
-                    .map(tc => (
-                      <div key={tc.id} className="test-case-item">
-                        <strong>{tc.name}</strong>
-                        <p>{tc.description}</p>
+                    ).length > 0 ? (
+                      <div className="related-test-cases">
+                        {promptTestCases
+                          .filter(tc => 
+                            tc.prompt_category === selectedPrompt.category &&
+                            (!tc.prompt_sub_category || tc.prompt_sub_category === selectedPrompt.sub_category)
+                          )
+                          .map(tc => (
+                            <div key={tc.id} className="test-case-item">
+                              <strong>{tc.name}</strong>
+                              {tc.description && <p>{tc.description}</p>}
+                            </div>
+                          ))
+                        }
+                        <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '12px' }}>
+                          💡 前往"测试执行"标签页运行这些测试
+                        </p>
                       </div>
-                    ))
-                  }
+                    ) : (
+                      <p style={{ fontSize: '13px', color: '#9ca3af' }}>
+                        暂无相关测试用例
+                      </p>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
               <div className="empty-state">
-                <p>选择提示词后可运行测试</p>
+                <p>选择提示词后查看详情</p>
               </div>
             )}
           </div>
@@ -698,15 +1009,23 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
           <div className="category-sidebar">
             <h3>评估器分类</h3>
             <div className="category-tree">
-              {Object.entries(EVALUATION_CATEGORIES).map(([key, config]) => (
-                <div
-                  key={key}
-                  className={`category-child ${selectedCategory === key ? 'active' : ''}`}
-                  onClick={() => selectPrompt(key)}
-                  style={{ marginLeft: 0 }}
-                >
-                  <span style={{ marginRight: '8px' }}>{config.icon}</span>
-                  {config.name}
+              {Object.entries(EVALUATION_CATEGORIES).map(([parentKey, parentConfig]) => (
+                <div key={parentKey}>
+                  {/* 父类别 */}
+                  <div className="category-parent">
+                    {parentConfig.name}
+                  </div>
+                  
+                  {/* 子类别 */}
+                  {parentConfig.subCategories.map(childKey => (
+                    <div
+                      key={childKey}
+                      className={`category-child ${selectedCategory === childKey ? 'active' : ''}`}
+                      onClick={() => selectPrompt(childKey)}
+                    >
+                      {EVALUATOR_SUBCATEGORY_NAMES[childKey]}
+                          </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -722,7 +1041,7 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     <div className="version-badge">
                       <span>v{selectedPrompt.version}</span>
                       {selectedPrompt.is_active === 1 && <span className="active-tag">● Active</span>}
-                    </div>
+                          </div>
                   </div>
                   <div className="editor-actions">
                     <button onClick={() => setShowVersionSwitcher(true)} className="btn-secondary">
@@ -845,7 +1164,7 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
             )}
           </div>
           </>
-        ) : (
+        ) : activeTab === 'testcases' ? (
           // ========== 测试用例管理界面 ==========
           <>
           {/* 左侧：分类和测试用例列表 */}
@@ -868,9 +1187,9 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
               </div>
             </div>
 
-            {/* 测试用例列表 */}
+            {/* 测试目标列表（角色/群聊） */}
             <div className="test-cases-section" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
-              <h3>测试用例</h3>
+              <h3>测试目标</h3>
               <div className="category-tree">
                 {testLoading ? (
                   <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>加载中...</div>
@@ -879,31 +1198,54 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     暂无测试用例
                   </div>
                 ) : (
-                  testCases.map((testCase) => (
-                    <div
-                      key={testCase.id}
-                      className={`category-child ${selectedTestCase?.id === testCase.id ? 'active' : ''}`}
-                      onClick={() => setSelectedTestCase(testCase)}
-                      style={{ marginLeft: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}
-                    >
-                      <div style={{ fontWeight: 500 }}>{testCase.name}</div>
-                      {testCase.is_active === 1 && (
-                        <span style={{ fontSize: '10px', background: '#10b981', color: 'white', padding: '2px 6px', borderRadius: '3px', marginTop: '4px' }}>
-                          Active
-                        </span>
-                      )}
-                    </div>
-                  ))
+                  getUniqueTargets().map((target) => {
+                    const isActive = selectedTarget?.type === target.type && selectedTarget?.id === target.id
+                    const testCount = testCases.filter(tc => 
+                      tc.target_type === target.type && tc.target_id === target.id
+                    ).length
+                      
+                      return (
+                      <div
+                        key={`${target.type}-${target.id}`}
+                        className={`category-child ${isActive ? 'active' : ''}`}
+                        onClick={() => selectTarget(target)}
+                        style={{ 
+                          marginLeft: 0, 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>{target.type === 'character' ? '👤' : '👥'}</span>
+                          <span style={{ fontWeight: 500 }}>{target.name}</span>
+                        </div>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          background: isActive ? 'rgba(255,255,255,0.3)' : '#e5e7eb',
+                          color: isActive ? 'white' : '#6b7280',
+                          padding: '2px 8px', 
+                          borderRadius: '12px',
+                          fontWeight: 600
+                        }}>
+                          {testCount}
+                            </span>
+                      </div>
+                    )
+                  })
                 )}
               </div>
             </div>
-          </div>
-
+                          </div>
+                          
           {/* 中间：测试用例详情 */}
           <div className="editor-area">
             {!selectedTestCase ? (
               <div className="empty-state">
-                <p>👈 请从左侧选择一个测试用例</p>
+                <p>👈 请从左侧选择一个测试目标</p>
+                <p style={{ fontSize: '13px', color: '#9ca3af', marginTop: '8px' }}>
+                  选择角色或群聊后，在右侧选择具体的测试用例
+                </p>
               </div>
             ) : (
               <>
@@ -916,8 +1258,8 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     </div>
                   </div>
                   <div className="editor-actions">
-                    <button 
-                      className="btn-primary" 
+                  <button
+                    className="btn-primary"
                       onClick={handleExecuteTest}
                       disabled={executing}
                     >
@@ -928,7 +1270,7 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                       style={{ background: '#f59e0b', color: 'white' }}
                     >
                       🔄 重置状态
-                    </button>
+                  </button>
                   </div>
                 </div>
 
@@ -938,15 +1280,15 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ fontWeight: 600, marginBottom: '8px', display: 'block' }}>描述</label>
                       <p style={{ margin: 0, lineHeight: 1.6 }}>{selectedTestCase.description}</p>
-                    </div>
-                  )}
-
+                            </div>
+                          )}
+                          
                   {/* 目标信息 */}
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ fontWeight: 600, marginBottom: '8px', display: 'block' }}>目标信息</label>
                     <p style={{ margin: '4px 0' }}>类型: {selectedTestCase.target_type}</p>
                     <p style={{ margin: '4px 0' }}>ID: {selectedTestCase.target_id}</p>
-                  </div>
+                          </div>
 
                   {/* 测试内容 */}
                   <div style={{ marginBottom: '20px' }}>
@@ -969,9 +1311,9 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                     <div style={{ marginBottom: '20px' }}>
                       <label style={{ fontWeight: 600, marginBottom: '8px', display: 'block' }}>期望行为</label>
                       <p style={{ margin: 0, lineHeight: 1.6 }}>{selectedTestCase.expected_behavior}</p>
-                    </div>
-                  )}
-
+                            </div>
+                          )}
+                          
                   {/* 测试配置 */}
                   <div style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -999,8 +1341,8 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                             ❌ 取消
                           </button>
                         </div>
-                      )}
-                    </div>
+                          )}
+                        </div>
                     
                     {!editingConfig ? (
                       <pre style={{ 
@@ -1115,126 +1457,549 @@ export function PromptManagementModal({ show, onClose }: PromptManagementModalPr
                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '12px' }}>
                           💡 留空表示使用全局默认值
                         </div>
-                      </div>
-                    )}
+                  </div>
+                )}
                   </div>
                 </div>
               </>
             )}
           </div>
 
-          {/* 右侧：执行历史 */}
+          {/* 右侧：测试用例列表 */}
           <div className="test-panel">
-            <h3>执行历史</h3>
+            <h3>📋 测试用例列表</h3>
             
-            {!selectedTestCase ? (
+            {!selectedTarget ? (
               <div className="empty-state">
-                <p>选择测试用例后查看执行历史</p>
-              </div>
-            ) : executions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
-                <p>暂无执行记录</p>
-                <p style={{ fontSize: '13px', color: '#bbb', marginTop: '8px' }}>点击"执行测试"开始测试</p>
+                <p>选择测试目标后查看所有测试用例</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {executions.map((execution) => (
-                  <div 
-                    key={execution.id} 
-                    style={{
-                      padding: '12px',
-                      border: `1px solid ${execution.passed ? '#10b981' : '#ef4444'}`,
-                      borderRadius: '8px',
-                      background: execution.passed ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
-                      <span style={{ color: '#666' }}>
-                        {formatTimestamp(execution.execution_time)}
-                      </span>
-                      <span style={{ 
-                        fontWeight: 600, 
-                        padding: '2px 8px', 
-                        borderRadius: '4px',
-                        color: execution.passed ? '#10b981' : '#ef4444',
-                        background: execution.passed ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'
-                      }}>
-                        {execution.passed ? '✓ 通过' : '✗ 失败'}
-                      </span>
-                      {execution.score !== undefined && execution.score !== null && (
-                        <span style={{ 
-                          fontWeight: 600, 
-                          color: '#667eea',
-                          padding: '2px 8px',
-                          background: 'rgba(102, 126, 234, 0.1)',
-                          borderRadius: '4px'
-                        }}>
-                          {execution.score.toFixed(1)} 分
-                        </span>
-                      )}
-                      <span style={{ 
-                        color: '#666',
-                        padding: '2px 6px',
-                        background: '#f0f0f0',
-                        borderRadius: '4px'
-                      }}>
-                        {formatDuration(execution.duration_ms)}
-                      </span>
-                    </div>
-                    
-                    {execution.evaluation_feedback && (
-                      <div style={{ fontSize: '13px', color: '#333', lineHeight: 1.6, marginTop: '8px' }}>
-                        <strong style={{ display: 'block', marginBottom: '4px', color: '#666' }}>评估反馈:</strong>
-                        {execution.evaluation_feedback}
-                      </div>
-                    )}
-
-                    <details style={{ marginTop: '8px', fontSize: '13px' }}>
-                      <summary style={{ cursor: 'pointer', fontWeight: 500, color: '#667eea', padding: '4px 0' }}>
-                        查看详细信息
-                      </summary>
-                      {execution.llm_response && (
-                        <div style={{ marginTop: '8px' }}>
-                          <strong>LLM 响应:</strong>
-                          <pre style={{ 
-                            background: '#f5f5f5', 
-                            padding: '8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            overflow: 'auto',
-                            marginTop: '4px',
-                            border: '1px solid #e0e0e0',
-                            maxHeight: '200px'
-                          }}>
-                            {execution.llm_response}
-                          </pre>
-                        </div>
-                      )}
-                      {execution.evaluation_result && (
-                        <div style={{ marginTop: '8px' }}>
-                          <strong>评估结果:</strong>
-                          <pre style={{ 
-                            background: '#f5f5f5', 
-                            padding: '8px', 
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            overflow: 'auto',
-                            marginTop: '4px',
-                            border: '1px solid #e0e0e0',
-                            maxHeight: '200px'
-                          }}>
-                            {JSON.stringify(execution.evaluation_result, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </details>
+              <>
+                {/* 目标信息卡片 */}
+                <div style={{
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  color: 'white'
+                }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    opacity: 0.9,
+                    marginBottom: '4px',
+                    fontWeight: 500
+                  }}>
+                    {selectedTarget.type === 'character' ? '👤 测试角色' : '👥 测试群聊'}
                   </div>
-                ))}
-              </div>
+                  <div style={{ 
+                    fontSize: '16px', 
+                    fontWeight: 600,
+                    marginBottom: '4px'
+                  }}>
+                    {selectedTarget.name}
+                  </div>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    opacity: 0.8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>ID: {selectedTarget.id}</span>
+                    <span>•</span>
+                    <span>{testCategory}</span>
+                  </div>
+                </div>
+
+                {/* 测试用例列表 */}
+                <div className="related-test-cases">
+                  <div style={{ 
+                    fontSize: '13px', 
+                    fontWeight: 600, 
+                    marginBottom: '12px',
+                    color: '#374151',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>所有测试用例</span>
+                    <span style={{
+                      background: '#e0e7ff',
+                      color: '#4f46e5',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: 600
+                    }}>
+                      {testCases.filter(tc => 
+                        tc.target_type === selectedTarget.type &&
+                        tc.target_id === selectedTarget.id
+                      ).length}
+                    </span>
+                  </div>
+                  
+                  {testCases
+                    .filter(tc => 
+                      tc.target_type === selectedTarget.type &&
+                      tc.target_id === selectedTarget.id
+                    )
+                    .length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {testCases
+                          .filter(tc => 
+                            tc.target_type === selectedTarget.type &&
+                            tc.target_id === selectedTarget.id
+                    )
+                    .map(tc => (
+                            <div 
+                              key={tc.id}
+                              onClick={() => setSelectedTestCase(tc)}
+                              style={{
+                                padding: '12px',
+                                border: selectedTestCase?.id === tc.id ? '2px solid #667eea' : '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                background: selectedTestCase?.id === tc.id ? '#f0f4ff' : 'white',
+                                transition: 'all 0.2s',
+                                boxShadow: selectedTestCase?.id === tc.id ? '0 4px 8px rgba(102, 126, 234, 0.2)' : '0 1px 2px rgba(0,0,0,0.05)'
+                              }}
+                              onMouseEnter={(e) => {
+                                if (selectedTestCase?.id !== tc.id) {
+                                  e.currentTarget.style.borderColor = '#667eea'
+                                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(102, 126, 234, 0.15)'
+                                  e.currentTarget.style.transform = 'translateY(-2px)'
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (selectedTestCase?.id !== tc.id) {
+                                  e.currentTarget.style.borderColor = '#e5e7eb'
+                                  e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                                  e.currentTarget.style.transform = 'translateY(0)'
+                                }
+                              }}
+                            >
+                              <div style={{ 
+                                fontWeight: 600, 
+                                marginBottom: '6px',
+                                color: '#111827',
+                                fontSize: '14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}>
+                                <span>{tc.name}</span>
+                                {tc.is_active === 1 && (
+                                  <span style={{
+                                    background: '#10b981',
+                                    color: 'white',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '10px',
+                                    fontWeight: 600
+                                  }}>
+                                    激活
+                                  </span>
+                                )}
+                              </div>
+                              {tc.description && (
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: '#6b7280',
+                                  lineHeight: '1.5',
+                                  marginBottom: '8px'
+                                }}>
+                                  {tc.description}
+                                </div>
+                              )}
+                              <div style={{
+                                display: 'flex',
+                                gap: '8px',
+                                fontSize: '11px',
+                                color: '#9ca3af'
+                              }}>
+                                <span>v{tc.version}</span>
+                                <span>•</span>
+                                <span>{new Date(tc.created_at * 1000).toLocaleDateString('zh-CN')}</span>
+                              </div>
+                      </div>
+                    ))
+                  }
+                      </div>
+                    ) : (
+                      <div style={{ 
+                        textAlign: 'center', 
+                        padding: '40px 20px',
+                        background: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px dashed #d1d5db'
+                      }}>
+                        <div style={{ fontSize: '32px', marginBottom: '12px' }}>📝</div>
+                        <p style={{ margin: '0 0 8px 0', color: '#6b7280', fontSize: '14px' }}>
+                          该{selectedTarget.type === 'character' ? '角色' : '群聊'}暂无测试用例
+                        </p>
+                        <p style={{ 
+                          margin: 0, 
+                          fontSize: '12px', 
+                          color: '#9ca3af',
+                          lineHeight: '1.6'
+                        }}>
+                          您可以在主界面为这个{selectedTarget.type === 'character' ? '角色' : '群聊'}<br/>
+                          创建多个测试场景来全面验证功能
+                        </p>
+                      </div>
+                    )
+                  }
+                </div>
+
+                {/* 提示信息 */}
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  background: '#f0f9ff',
+                  borderRadius: '8px',
+                  border: '1px solid #bae6fd'
+                }}>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: '#0369a1',
+                    lineHeight: '1.6'
+                  }}>
+                    💡 <strong>使用说明：</strong><br/>
+                    • 点击测试用例卡片可查看和编辑详情<br/>
+                    • 当前选中的测试用例会高亮显示<br/>
+                    • 前往"测试执行"标签页运行测试并查看执行历史
+                  </div>
+                </div>
+              </>
             )}
           </div>
           </>
-        )}
+        ) : activeTab === 'execution' ? (
+          // ========== 测试执行标签页 ==========
+          <div className="test-execution-tab">
+            {/* 上部：测试配置区 */}
+            <div className="test-config-section">
+              {/* 模式选择 */}
+              <div className="execution-mode-selector">
+                <button 
+                  className={`mode-btn ${executionMode === 'single' ? 'active' : ''}`}
+                  onClick={() => setExecutionMode('single')}
+                >
+                  单个测试
+                </button>
+                <button 
+                  className={`mode-btn ${executionMode === 'batch' ? 'active' : ''}`}
+                  onClick={() => setExecutionMode('batch')}
+                >
+                  批量测试
+                </button>
+                <button 
+                  className={`mode-btn ${executionMode === 'category' ? 'active' : ''}`}
+                  onClick={() => setExecutionMode('category')}
+                >
+                  按类别测试
+                </button>
+              </div>
+
+              {/* 测试用例选择区 */}
+              <div className="test-case-selector">
+                {executionMode === 'single' && (
+                  <>
+                    <label>选择测试用例</label>
+                    <select 
+                      onChange={(e) => {
+                        const testCase = availableTestCases.find(tc => tc.id === parseInt(e.target.value))
+                        if (testCase) addTestCaseToConfig(testCase)
+                      }}
+                      value=""
+                    >
+                      <option value="">-- 请选择测试用例 --</option>
+                      {availableTestCases.map(tc => (
+                        <option key={tc.id} value={tc.id}>
+                          {tc.name} ({tc.category})
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+
+                {executionMode === 'batch' && (
+                  <>
+                    <label>选择测试用例（可多选）</label>
+                    <div className="test-case-list">
+                      {availableTestCases.map(tc => (
+                        <label key={tc.id} className="test-case-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={selectedTestCases.includes(tc.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTestCases([...selectedTestCases, tc.id])
+                              } else {
+                                setSelectedTestCases(selectedTestCases.filter(id => id !== tc.id))
+                              }
+                            }}
+                          />
+                          {tc.name} ({tc.category})
+                        </label>
+                              ))}
+                            </div>
+                    <button 
+                      className="add-to-test-btn"
+                      onClick={() => {
+                        availableTestCases
+                          .filter(tc => selectedTestCases.includes(tc.id))
+                          .forEach(tc => addTestCaseToConfig(tc))
+                        setSelectedTestCases([])
+                      }}
+                    >
+                      ➕ 添加选中的测试用例
+                    </button>
+                  </>
+                )}
+
+                {executionMode === 'category' && (
+                  <>
+                    <label>选择测试类别</label>
+                    <select 
+                      value={selectedCategoryForExecution}
+                      onChange={(e) => {
+                        setSelectedCategoryForExecution(e.target.value)
+                        setTestConfigs([]) // 清空现有配置
+                      }}
+                    >
+                      {TEST_CATEGORIES.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon} {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button 
+                      className="add-to-test-btn"
+                      style={{ marginTop: '8px' }}
+                      onClick={() => {
+                        availableTestCases.forEach(tc => addTestCaseToConfig(tc))
+                      }}
+                    >
+                      ➕ 添加该类别所有测试用例
+                    </button>
+                  </>
+                          )}
+                        </div>
+
+              {/* 测试配置表格 */}
+              {testConfigs.length > 0 && (
+                <table className="test-config-table">
+                  <thead>
+                    <tr>
+                      <th>测试用例</th>
+                      <th>提示词版本</th>
+                      <th>评估器版本</th>
+                      <th>状态</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {testConfigs.map(config => (
+                      <tr key={config.id}>
+                        <td>{config.testCaseName}</td>
+                        <td>
+                          <select 
+                            className="version-selector"
+                            value={config.selectedPromptVersion || ''}
+                            onChange={(e) => updateConfigPromptVersion(config.id, parseInt(e.target.value))}
+                          >
+                            <option value="">-- 选择版本 --</option>
+                            {getAvailablePromptVersions(config).map(p => (
+                              <option key={p.id} value={p.id}>
+                                v{p.version} {p.is_active ? '(激活)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select 
+                            className="version-selector"
+                            value={config.selectedEvaluatorVersion || ''}
+                            onChange={(e) => updateConfigEvaluatorVersion(config.id, parseInt(e.target.value))}
+                          >
+                            <option value="">-- 选择评估器 --</option>
+                            {getAvailableEvaluatorVersions(config).map(p => (
+                              <option key={p.id} value={p.id}>
+                                v{p.version} {p.is_active ? '(激活)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <span className={`config-status ${config.status}`}>
+                            {config.status === 'pending' && '⏳ 待执行'}
+                            {config.status === 'running' && '🔄 执行中'}
+                            {config.status === 'completed' && '✅ 完成'}
+                            {config.status === 'error' && '❌ 失败'}
+                          </span>
+                        </td>
+                        <td>
+                          <button 
+                            className="remove-config-btn"
+                            onClick={() => removeTestConfig(config.id)}
+                            disabled={isExecuting}
+                          >
+                            移除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* 测试操作按钮 */}
+              <div className="test-actions">
+                <button 
+                  className="test-action-btn run-test-btn"
+                  onClick={handleRunTests}
+                  disabled={isExecuting || testConfigs.length === 0}
+                >
+                  {isExecuting ? '⏳ 执行中...' : '▶️ 运行测试'}
+                </button>
+                <button 
+                  className="test-action-btn restore-btn"
+                  onClick={handleRestoreTestEnvironment}
+                  disabled={isRestoring || testConfigs.length === 0}
+                >
+                  {isRestoring ? '⏳ 恢复中...' : '🔄 恢复测试环境'}
+                </button>
+                  </div>
+            </div>
+
+            {/* 下部：测试结果展示区 */}
+            <div className="test-results-section">
+              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>测试结果</h3>
+              
+              {executionResults.length === 0 ? (
+                <div className="no-results">
+                  <div className="no-results-icon">📊</div>
+                  <p className="no-results-text">
+                    {isExecuting ? '测试执行中，请稍候...' : '配置测试用例并点击"运行测试"开始执行'}
+                  </p>
+                </div>
+              ) : (
+                executionResults.map((result, index) => {
+                  const displayMode = resultDisplayModes[index] || 'raw'
+                  const parsed = parseEvaluationResult(result.evaluation_result)
+                  
+                  return (
+                    <div key={index} className={`result-card ${result.success ? 'success' : 'error'}`}>
+                      <div className="result-header">
+                        <h4>
+                          {result.success ? '✅' : '❌'} {result.testCaseName || `测试用例 #${result.test_case_id}`}
+                        </h4>
+                        <div className="result-meta">
+                          {result.score !== undefined && (
+                            <span className="result-score">{result.score}/100</span>
+                          )}
+                          <span>{formatDuration(result.duration_ms)}</span>
+                          <span>{formatTimestamp(result.execution_time)}</span>
+                        </div>
+                      </div>
+
+                      {result.error && (
+                        <div style={{ 
+                          padding: '12px', 
+                          background: '#fee2e2', 
+                          borderRadius: '4px', 
+                          color: '#991b1b',
+                          marginBottom: '12px'
+                        }}>
+                          <strong>错误:</strong> {result.error}
+              </div>
+            )}
+
+                      {result.success && result.evaluation_feedback && (
+                        <>
+                          <div className="result-tabs">
+                            <button 
+                              className={`result-tab-btn ${displayMode === 'raw' ? 'active' : ''}`}
+                              onClick={() => setResultDisplayModes({...resultDisplayModes, [index]: 'raw'})}
+                            >
+                              📝 原始评估
+                            </button>
+                            <button 
+                              className={`result-tab-btn ${displayMode === 'structured' ? 'active' : ''}`}
+                              onClick={() => setResultDisplayModes({...resultDisplayModes, [index]: 'structured'})}
+                            >
+                              📊 结构化解析
+                            </button>
+          </div>
+
+                          <div className="result-content">
+                            {displayMode === 'raw' ? (
+                              <pre className="raw-text">{result.evaluation_feedback}</pre>
+                            ) : (
+                              <div className="structured-result">
+                                {parsed.score !== undefined && (
+                                  <div className="result-field">
+                                    <div className="result-field-label">评分</div>
+                                    <div className="result-field-content">{parsed.score} / 100</div>
+              </div>
+            )}
+                                
+                                {parsed.strengths && parsed.strengths.length > 0 && (
+                                  <div className="result-field">
+                                    <div className="result-field-label">✅ 优点</div>
+                                    <div className="result-field-content">
+                                      <ul>
+                                        {parsed.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                                      </ul>
+          </div>
+                                  </div>
+                                )}
+                                
+                                {parsed.weaknesses && parsed.weaknesses.length > 0 && (
+                                  <div className="result-field">
+                                    <div className="result-field-label">⚠️ 缺点</div>
+                                    <div className="result-field-content">
+                                      <ul>
+                                        {parsed.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {parsed.suggestions && parsed.suggestions.length > 0 && (
+                                  <div className="result-field">
+                                    <div className="result-field-label">💡 建议</div>
+                                    <div className="result-field-content">
+                                      <ul>
+                                        {parsed.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {Object.keys(parsed.details || {}).length > 0 && (
+                                  <div className="result-field">
+                                    <div className="result-field-label">📋 详细信息</div>
+                                    <div className="result-field-content">
+                                      <pre style={{ margin: 0, fontSize: '12px' }}>
+                                        {JSON.stringify(parsed.details, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
         </div>
 
         {/* 版本切换弹窗 */}

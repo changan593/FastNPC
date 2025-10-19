@@ -119,3 +119,30 @@ export interface TestExecution {
   executed_by?: number;
 }
 
+export interface TestConfig {
+  id: string;
+  testCaseId: number;
+  testCaseName: string;
+  testCaseCategory: string;
+  promptCategory: string;
+  promptSubCategory?: string;
+  selectedPromptVersion?: number;
+  selectedEvaluatorVersion?: number;
+  status: 'pending' | 'running' | 'completed' | 'error';
+}
+
+export interface TestExecutionResult extends TestExecution {
+  testCaseName?: string;
+  success: boolean;
+  error?: string;
+}
+
+export interface ParsedEvaluationResult {
+  score?: number;
+  strengths?: string[];
+  weaknesses?: string[];
+  suggestions?: string[];
+  details?: Record<string, any>;
+  raw?: string;
+}
+
