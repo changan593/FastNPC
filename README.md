@@ -27,6 +27,14 @@
 
 ---
 
+## 贡献者
+
+<a href="https://github.com/eryajf/learn-github/graphs/contributors">
+
+  <img src="https://contrib.rocks/image?repo=eryajf/learn-github" />
+
+</a>
+
 ## 📖 项目简介
 
 FastNPC 是一个创新的 AI 角色自动化构建平台，能够从百度百科、维基百科等知识源自动抓取角色信息，通过大语言模型（LLM）智能生成结构化的角色画像，并提供完整的对话交互功能。
