@@ -29,11 +29,9 @@
 
 ## 贡献者
 
-<a href="https://github.com/eryajf/learn-github/graphs/contributors">
+<!-- readme: collaborators,contributors -start -->
 
-  <img src="https://contrib.rocks/image?repo=eryajf/learn-github" />
-
-</a>
+<!-- readme: collaborators,contributors -end -->
 
 ## 📖 项目简介
 
