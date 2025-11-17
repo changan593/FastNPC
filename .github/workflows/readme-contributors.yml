@@ -12,9 +12,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Contribute List
         uses: akhilmhdh/contributors-readme-action@v2.3.4
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTRIBUTORS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
